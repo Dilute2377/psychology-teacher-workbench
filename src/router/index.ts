@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHashHistory, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import MainLayout from '../layouts/MainLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
 import StudentDetailView from '../views/student/StudentDetailView.vue'
@@ -22,7 +22,7 @@ const workspaceRoutes: RouteRecordRaw[] = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: window.location.protocol === 'file:' ? createWebHashHistory() : createWebHistory(),
   routes: [
     { path: '/', component: MainLayout, children: workspaceRoutes },
     { path: '/:pathMatch(.*)*', redirect: '/' },
