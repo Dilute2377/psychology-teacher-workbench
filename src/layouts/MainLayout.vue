@@ -25,8 +25,8 @@ const closeDialog = () => { activeDialog.value = null }
 </script>
 
 <template>
-  <div class="min-h-screen bg-stone-100 text-stone-800">
-    <header class="flex h-16 items-center gap-3 border-b border-stone-200 bg-white px-4 shadow-sm sm:px-6">
+  <div class="flex h-screen w-screen flex-col overflow-hidden bg-slate-50 text-stone-800">
+    <header class="flex h-14 shrink-0 items-center gap-3 border-b border-stone-200 bg-white px-4 shadow-sm sm:px-6">
       <div class="flex min-w-fit items-center gap-2 text-teal-800">
         <div class="flex size-9 items-center justify-center rounded-xl bg-teal-700 text-white shadow-sm"><ShieldCheck :size="19" /></div>
         <span class="hidden text-sm font-semibold sm:block">心理老师工作台</span>
@@ -45,21 +45,20 @@ const closeDialog = () => { activeDialog.value = null }
       </div>
     </header>
 
-    <div class="grid min-h-[calc(100vh-4rem)] grid-cols-[72px_minmax(0,1fr)] lg:grid-cols-[224px_minmax(270px,0.7fr)_minmax(420px,1.4fr)]">
-      <aside class="border-r border-stone-200 bg-stone-50 px-2 py-4 lg:px-3">
-        <p class="mb-3 hidden px-3 text-xs font-semibold tracking-[0.18em] text-stone-400 lg:block">工作空间</p>
+    <div class="flex flex-1 overflow-hidden">
+      <aside class="w-56 shrink-0 overflow-y-auto border-r border-stone-200 bg-white px-3 py-4">
+        <p class="mb-3 px-3 text-xs font-semibold tracking-[0.18em] text-stone-400">工作空间</p>
         <nav class="space-y-1" aria-label="主导航">
           <RouterLink v-for="item in navigation" :key="item.to" :to="item.to" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition hover:bg-teal-50 hover:text-teal-800" active-class="bg-teal-100 text-teal-900 shadow-sm">
-            <component :is="item.icon" :size="18" /><span class="hidden lg:inline">{{ item.label }}</span>
+            <component :is="item.icon" :size="18" /><span>{{ item.label }}</span>
           </RouterLink>
         </nav>
       </aside>
-      <section class="hidden min-w-0 flex-col border-r border-stone-200 bg-white lg:flex">
-        <div class="border-b border-stone-100 px-5 py-5"><p class="text-xs font-medium tracking-wide text-teal-700">{{ pageLabel }}</p><h2 class="mt-1 text-lg font-semibold text-stone-800">列表与筛选区</h2></div>
-        <StudentList v-if="route.path === '/students'" />
-        <slot v-else name="list"><div class="flex flex-1 items-center justify-center px-8 text-center"><p class="text-sm leading-6 text-stone-400">后续模块将在此嵌入搜索、筛选和可操作的业务列表。</p></div></slot>
-      </section>
-      <main class="min-w-0 bg-stone-100 p-3 sm:p-5"><div class="h-full min-h-[calc(100vh-6.5rem)] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm"><slot name="workspace"><RouterView /></slot></div></main>
+      <div class="flex min-w-0 flex-1 overflow-hidden">
+        <section v-if="route.path === '/students'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><StudentList /></section>
+        <section v-else class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><div class="shrink-0 border-b border-stone-100 px-5 py-5"><p class="text-xs font-medium tracking-wide text-teal-700">{{ pageLabel }}</p><h2 class="mt-1 text-lg font-semibold text-stone-800">列表与筛选区</h2></div><slot name="list"><div class="flex flex-1 items-center justify-center px-8 text-center"><p class="text-sm leading-6 text-stone-400">后续模块将在此嵌入搜索、筛选和可操作的业务列表。</p></div></slot></section>
+        <main class="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-white"><slot name="workspace"><RouterView /></slot></main>
+      </div>
     </div>
 
     <Teleport to="body">

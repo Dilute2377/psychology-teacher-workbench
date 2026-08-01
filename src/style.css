@@ -10,6 +10,11 @@
 
 * { box-sizing: border-box; }
 
+html, body, #app {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
@@ -18,3 +23,8 @@ body {
 
 button, input, select { font: inherit; }
 button { cursor: pointer; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
