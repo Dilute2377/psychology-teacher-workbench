@@ -2,7 +2,7 @@
   "name": "psychology-teacher-workbench",
   "description": "纯本地、离线优先的学校心理教师工作台",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
