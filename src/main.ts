@@ -3,12 +3,13 @@ import { createPinia } from 'pinia'
 import './style.css'
 import App from './App.vue'
 import router from './router'
-import { initializeStudentDemoData } from './services/studentService'
+import { useTermStore } from './stores/useTermStore'
 
 async function bootstrap() {
-  await initializeStudentDemoData()
   const app = createApp(App)
-  app.use(createPinia())
+  const pinia = createPinia()
+  app.use(pinia)
+  await useTermStore(pinia).fetchTerms()
   app.use(router)
   app.mount('#app')
 }

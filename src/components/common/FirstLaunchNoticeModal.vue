@@ -1,0 +1,13 @@
+<script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { Rocket, ShieldAlert, X } from '@lucide/vue'
+
+const visible = ref(false)
+const dontShowAgain = ref(true)
+function open() { visible.value = true }
+function close() { if (dontShowAgain.value) localStorage.setItem('hasSeenLaunchNotice', 'true'); visible.value = false }
+onMounted(() => { if (localStorage.getItem('hasSeenLaunchNotice') !== 'true') open(); window.addEventListener('show-launch-notice', open) })
+onBeforeUnmount(() => window.removeEventListener('show-launch-notice', open))
+</script>
+
+<template><Teleport to="body"><div v-if="visible" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4"><section class="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl"><header class="flex items-start justify-between bg-rose-50 px-6 py-5"><div class="flex gap-3"><span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-700"><ShieldAlert :size="21" /></span><div><p class="font-semibold text-rose-900">免费使用声明 · 谨防盗卖骗局</p><p class="mt-1 text-xs text-rose-700">心理老师工作台 · 本地公益工具</p></div></div><button type="button" class="rounded-lg p-1 text-rose-400 hover:bg-rose-100" @click="close"><X :size="18" /></button></header><div class="p-6"><p class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-semibold leading-7 text-amber-900">本项目为免费公益项目，完全免费！如果您是在咸鱼/淘宝/小红书付费购买的，请立即举报卖家并退款！</p><div class="mt-5 grid gap-3 sm:grid-cols-2"><article class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs font-medium text-slate-400">📕 小红书</p><p class="mt-1 text-base font-semibold text-slate-800">哈喽老师</p></article><article class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs font-medium text-slate-400">💬 微信公众号</p><p class="mt-1 text-base font-semibold text-slate-800">省思塔</p></article></div><div class="mt-5 flex flex-col items-center rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4"><img src="/branding/收款码.jpg" alt="作者赞赏码" class="size-40 rounded-xl border border-white object-cover shadow-sm" /><p class="mt-3 text-xs text-slate-500">感谢支持本地心理工作工具的持续维护</p></div><footer class="mt-5 flex flex-wrap items-center justify-between gap-3"><label class="inline-flex items-center gap-2 text-sm text-slate-600"><input v-model="dontShowAgain" type="checkbox" class="accent-emerald-600" />我已知晓，不再提示</label><button type="button" class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700" @click="close"><Rocket :size="16" />进入心理老师工作台</button></footer></div></section></div></Teleport></template>
