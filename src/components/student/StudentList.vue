@@ -4,11 +4,14 @@ import { Plus, Search, UserRound, X } from '@lucide/vue'
 import { studentService } from '../../services/studentService'
 import { useWorkbenchStore } from '../../stores/workbench'
 import type { RiskLevel, Student } from '../../types/schema'
+import BatchImportModal from './BatchImportModal.vue'
 
 const workbench = useWorkbenchStore()
 /** 全量数据源：筛选选项永远只能从这里计算。 */
 const allStudents = ref<Student[]>([])
 const isAdding = ref(false)
+const isImporting = ref(false)
+const includeGraduated = ref(false)
 const grade = ref('')
 const className = ref('')
 const riskLevel = ref<RiskLevel | ''>('')
@@ -28,6 +31,7 @@ const filteredStudents = computed(() => {
     (!grade.value || student.grade === grade.value)
     && (!className.value || student.className === className.value)
     && (!riskLevel.value || student.riskLevel === riskLevel.value)
+    && (includeGraduated.value || student.status === 'active')
     && (!search || [student.name, student.studentNo, ...student.tags].join(' ').toLocaleLowerCase().includes(search)),
   )
 })
@@ -50,7 +54,7 @@ function resetNewStudent() { newStudent.value = { name: '', studentNo: '', gende
 async function createStudent() {
   if (!newStudent.value.name.trim() || !newStudent.value.studentNo.trim()) return
   const student = await studentService.create({
-    name: newStudent.value.name.trim(), studentNo: newStudent.value.studentNo.trim(), gender: newStudent.value.gender, grade: newStudent.value.grade.trim(), className: newStudent.value.className.trim(), riskLevel: newStudent.value.riskLevel,
+    name: newStudent.value.name.trim(), studentNo: newStudent.value.studentNo.trim(), gender: newStudent.value.gender, enrollmentYear: newStudent.value.grade === '初三' ? 2023 : newStudent.value.grade === '初二' ? 2024 : 2025, status: 'active', grade: newStudent.value.grade.trim(), className: newStudent.value.className.trim(), riskLevel: newStudent.value.riskLevel,
     emergencyContact: { name: newStudent.value.contactName.trim() || '未填写', relation: newStudent.value.relation.trim() || '监护人', phone: newStudent.value.phone.trim() || '未填写' },
     tags: newStudent.value.tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean),
   })
@@ -68,7 +72,7 @@ onMounted(loadStudents)
 <template>
   <div class="flex h-full min-h-0 flex-col">
     <div class="space-y-3 border-b border-stone-100 p-4">
-      <div class="flex items-center justify-between gap-2"><span class="text-sm font-semibold text-stone-800">学生档案</span><button class="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-800" type="button" @click="isAdding = true"><Plus :size="15" />新增学生</button></div>
+      <div class="flex items-center justify-between gap-2"><span class="text-sm font-semibold text-stone-800">学生档案</span><span class="flex gap-1"><button class="rounded-lg border px-2 py-1 text-xs" @click="isImporting = true">导入</button><button class="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-800" type="button" @click="isAdding = true"><Plus :size="15" />新增</button></span></div>
       <label class="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-2 text-sm text-stone-400"><Search :size="15" /><input v-model="keyword" class="w-full bg-transparent outline-none" placeholder="搜索姓名、学号或标签" /></label>
       <div class="grid grid-cols-3 gap-2"><select v-model="grade" class="min-w-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"><option value="">全部年级</option><option v-for="item in gradeOptions" :key="item" :value="item">{{ item }}</option></select><select v-model="className" class="min-w-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"><option value="">全部班级</option><option v-for="item in classOptions" :key="item" :value="item">{{ item }}</option></select><select v-model="riskLevel" class="min-w-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"><option value="">全部预警</option><option value="normal">正常</option><option value="attention">关注</option><option value="warning">重点关注</option><option value="crisis">危机预警</option></select></div>
     </div>
@@ -81,4 +85,5 @@ onMounted(loadStudents)
   </div>
 
   <Teleport to="body"><div v-if="isAdding" class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/30 p-4" @click.self="isAdding = false"><form class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" @submit.prevent="createStudent"><div class="flex items-center justify-between"><h2 class="text-base font-semibold">新增学生</h2><button type="button" class="rounded-lg p-1 text-stone-400 hover:bg-stone-100" @click="isAdding = false"><X :size="18" /></button></div><div class="mt-4 grid grid-cols-2 gap-3 text-sm"><label>姓名<input v-model="newStudent.name" required class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label>学号<input v-model="newStudent.studentNo" required class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label>年级<input v-model="newStudent.grade" required class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label>班级<input v-model="newStudent.className" required class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label>性别<select v-model="newStudent.gender" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"><option value="female">女</option><option value="male">男</option><option value="other">其他</option></select></label><label>危机预警等级<select v-model="newStudent.riskLevel" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"><option value="normal">正常</option><option value="attention">关注</option><option value="warning">重点关注</option><option value="crisis">危机预警</option></select></label><label>紧急联系人<input v-model="newStudent.contactName" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label>联系电话<input v-model="newStudent.phone" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label class="col-span-2">快捷标签（逗号分隔）<input v-model="newStudent.tags" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="如：学业焦虑，人际敏感" /></label></div><div class="mt-5 flex justify-end gap-2"><button type="button" class="rounded-lg px-3 py-2 text-sm text-stone-600 hover:bg-stone-100" @click="isAdding = false">取消</button><button class="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800">保存学生</button></div></form></div></Teleport>
+  <BatchImportModal v-if="isImporting" @close="isImporting = false" @imported="workbench.notifyStudentsChanged()" />
 </template>

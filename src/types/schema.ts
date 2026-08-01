@@ -5,6 +5,7 @@
 
 // 1. 风险预警等级
 export type RiskLevel = 'normal' | 'attention' | 'warning' | 'crisis'
+export type StudentStatus = 'active' | 'graduated'
 
 // 2. 学期配置
 export interface TermConfig {
@@ -21,6 +22,8 @@ export interface Student {
   studentNo: string // 学号
   name: string // 姓名
   gender: 'male' | 'female' | 'other'
+  enrollmentYear: number
+  status: StudentStatus
   grade: string // 年级 (如 "高一")
   className: string // 班级 (如 "1班")
   dormNumber?: string // 宿舍号 (预留扩展)

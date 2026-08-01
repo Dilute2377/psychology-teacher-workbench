@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, type Component } from 'vue'
-import { ArchiveRestore, BookOpenCheck, ChartNoAxesCombined, ChevronDown, ClipboardList, Gauge, GraduationCap, LockKeyhole, Search, Settings2, ShieldCheck, UsersRound, X } from '@lucide/vue'
+import { ArchiveRestore, BookOpenCheck, ChartNoAxesCombined, ClipboardList, Gauge, GraduationCap, LockKeyhole, Search, Settings2, ShieldCheck, UsersRound, X } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 import { useWorkbenchStore } from '../stores/workbench'
 import StudentList from '../components/student/StudentList.vue'
+import HeaderTermSelector from '../components/layout/HeaderTermSelector.vue'
+import AcademicYearPromotionModal from '../components/system/AcademicYearPromotionModal.vue'
 
 type NavigationItem = { label: string; to: string; icon: Component }
 
 const route = useRoute()
 const workbench = useWorkbenchStore()
 const activeDialog = ref<'lock' | 'backup' | null>(null)
+const isPromoting = ref(false)
 const navigation: NavigationItem[] = [
   { label: '概览面板', to: '/', icon: Gauge },
   { label: '学生档案', to: '/students', icon: GraduationCap },
@@ -20,7 +23,6 @@ const navigation: NavigationItem[] = [
   { label: '系统设置', to: '/settings', icon: Settings2 },
 ]
 const pageLabel = computed(() => navigation.find((item) => item.to === route.path)?.label ?? '工作台')
-const termLabel = computed(() => workbench.currentTerm?.name ?? '请选择学期')
 const closeDialog = () => { activeDialog.value = null }
 </script>
 
@@ -31,9 +33,7 @@ const closeDialog = () => { activeDialog.value = null }
         <div class="flex size-9 items-center justify-center rounded-xl bg-teal-700 text-white shadow-sm"><ShieldCheck :size="19" /></div>
         <span class="hidden text-sm font-semibold sm:block">心理老师工作台</span>
       </div>
-      <button class="ml-1 flex min-w-0 items-center gap-1 rounded-lg px-2.5 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100" type="button">
-        <span class="truncate">{{ termLabel }}</span><ChevronDown :size="15" />
-      </button>
+      <HeaderTermSelector />
       <label class="mx-auto hidden w-full max-w-xl items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-400 focus-within:border-teal-400 focus-within:bg-white md:flex">
         <Search :size="16" />
         <input v-model="workbench.globalSearch" class="w-full bg-transparent outline-none placeholder:text-stone-400" placeholder="搜索学生、记录或关键词" />
@@ -41,18 +41,20 @@ const closeDialog = () => { activeDialog.value = null }
       </label>
       <div class="ml-auto flex items-center gap-1.5">
         <button class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100" type="button" @click="activeDialog = 'lock'"><LockKeyhole :size="16" /><span class="hidden lg:inline">数据锁</span></button>
+        <button class="hidden rounded-lg px-2 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100 xl:inline" type="button" @click="isPromoting = true">一键升学</button>
         <button class="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-2.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-800" type="button" @click="activeDialog = 'backup'"><ArchiveRestore :size="16" /><span class="hidden lg:inline">备份</span></button>
       </div>
     </header>
 
     <div class="flex flex-1 overflow-hidden">
-      <aside class="w-56 shrink-0 overflow-y-auto border-r border-stone-200 bg-white px-3 py-4">
+      <aside class="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-stone-200 bg-white px-3 py-4">
         <p class="mb-3 px-3 text-xs font-semibold tracking-[0.18em] text-stone-400">工作空间</p>
         <nav class="space-y-1" aria-label="主导航">
           <RouterLink v-for="item in navigation" :key="item.to" :to="item.to" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition hover:bg-teal-50 hover:text-teal-800" active-class="bg-teal-100 text-teal-900 shadow-sm">
             <component :is="item.icon" :size="18" /><span>{{ item.label }}</span>
           </RouterLink>
         </nav>
+        <div class="mt-auto rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs text-stone-600"><p class="font-semibold text-stone-700">心理老师工作台</p><div class="mt-2 flex flex-wrap gap-1.5"><span class="rounded-full bg-rose-50 px-2 py-1 text-rose-700">小红书 · 哈喽老师</span><span class="rounded-full bg-teal-50 px-2 py-1 text-teal-700">公众号 · 省思塔</span></div></div>
       </aside>
       <div class="flex min-w-0 flex-1 overflow-hidden">
         <section v-if="route.path === '/students'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><StudentList /></section>
@@ -71,6 +73,7 @@ const closeDialog = () => { activeDialog.value = null }
         </div>
       </Transition>
     </Teleport>
+    <AcademicYearPromotionModal v-if="isPromoting" @close="isPromoting = false" @promoted="workbench.notifyStudentsChanged()" />
   </div>
 </template>
 

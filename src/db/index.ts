@@ -24,6 +24,7 @@ export class PsychologyWorkbenchDatabase extends Dexie {
       timelineEvents: 'id, studentId, termId, type, date, sourceId',
       settings: 'id',
     })
+    this.version(2).stores({ students: 'id, studentNo, name, enrollmentYear, status, grade, className, riskLevel, createdAt, updatedAt', consultations: 'id, studentId, termId, date, visitType, createdAt, updatedAt', terms: 'id, isCurrent, startDate, endDate', census: 'id, termId, date, scaleName', groupActivities: 'id, termId, date, theme', lessonRecords: 'id, termId, grade, date', timelineEvents: 'id, studentId, termId, type, date, sourceId', settings: 'id' }).upgrade((tx) => tx.table('students').toCollection().modify((student: Student) => { student.enrollmentYear ??= student.grade === '初三' ? 2023 : student.grade === '初二' ? 2024 : 2025; student.status ??= 'active' }))
   }
 }
 

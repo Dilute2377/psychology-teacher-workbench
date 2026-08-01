@@ -20,14 +20,14 @@ const demoTerm: TermConfig = { id: '2026-2027-1', name: '2026-2027学年 第一�
 const contact = (name: string, relation: string, phone: string) => ({ name, relation, phone })
 
 const demoStudents: Student[] = [
-  { id: 'demo-student-01', studentNo: '20260101', name: '陈思涵', gender: 'female', grade: '初一', className: '1班', emergencyContact: contact('陈女士', '母亲', '13800001001'), riskLevel: 'normal', tags: ['适应良好', '班级心理委员'], createdAt: now, updatedAt: now },
-  { id: 'demo-student-02', studentNo: '20260112', name: '李明远', gender: 'male', grade: '初一', className: '3班', emergencyContact: contact('李先生', '父亲', '13800001012'), riskLevel: 'attention', tags: ['学业焦虑', '睡眠困扰'], createdAt: now, updatedAt: now },
-  { id: 'demo-student-03', studentNo: '20260205', name: '周雨桐', gender: 'female', grade: '初二', className: '2班', emergencyContact: contact('周女士', '母亲', '13800002005'), riskLevel: 'warning', tags: ['人际敏感', '需要持续关注'], createdAt: now, updatedAt: now },
-  { id: 'demo-student-04', studentNo: '20260218', name: '王子轩', gender: 'male', grade: '初二', className: '5班', emergencyContact: contact('王女士', '母亲', '13800002018'), riskLevel: 'normal', tags: ['运动特长'], createdAt: now, updatedAt: now },
-  { id: 'demo-student-05', studentNo: '20260303', name: '赵安然', gender: 'female', grade: '初三', className: '1班', emergencyContact: contact('赵先生', '父亲', '13800003003'), riskLevel: 'crisis', tags: ['重点支持', '家庭变故'], createdAt: now, updatedAt: now },
-  { id: 'demo-student-06', studentNo: '20260316', name: '孙浩宇', gender: 'male', grade: '初三', className: '4班', emergencyContact: contact('孙女士', '母亲', '13800003016'), riskLevel: 'attention', tags: ['考试压力'], createdAt: now, updatedAt: now },
-  { id: 'demo-student-07', studentNo: '20260226', name: '吴语宁', gender: 'female', grade: '初二', className: '3班', emergencyContact: contact('吴女士', '监护人', '13800002026'), riskLevel: 'warning', tags: ['同伴关系', '单亲'], createdAt: now, updatedAt: now },
-  { id: 'demo-student-08', studentNo: '20260127', name: '刘泽宇', gender: 'male', grade: '初一', className: '4班', emergencyContact: contact('刘先生', '父亲', '13800001027'), riskLevel: 'normal', tags: ['适应观察'], createdAt: now, updatedAt: now },
+  { id: 'demo-student-01', studentNo: '20260101', name: '陈思涵', gender: 'female', enrollmentYear: 2025, status: 'active', grade: '初一', className: '1班', emergencyContact: contact('陈女士', '母亲', '13800001001'), riskLevel: 'normal', tags: ['适应良好', '班级心理委员'], createdAt: now, updatedAt: now },
+  { id: 'demo-student-02', studentNo: '20260112', name: '李明远', gender: 'male', enrollmentYear: 2025, status: 'active', grade: '初一', className: '3班', emergencyContact: contact('李先生', '父亲', '13800001012'), riskLevel: 'attention', tags: ['学业焦虑', '睡眠困扰'], createdAt: now, updatedAt: now },
+  { id: 'demo-student-03', studentNo: '20260205', name: '周雨桐', gender: 'female', enrollmentYear: 2024, status: 'active', grade: '初二', className: '2班', emergencyContact: contact('周女士', '母亲', '13800002005'), riskLevel: 'warning', tags: ['人际敏感', '需要持续关注'], createdAt: now, updatedAt: now },
+  { id: 'demo-student-04', studentNo: '20260218', name: '王子轩', gender: 'male', enrollmentYear: 2024, status: 'active', grade: '初二', className: '5班', emergencyContact: contact('王女士', '母亲', '13800002018'), riskLevel: 'normal', tags: ['运动特长'], createdAt: now, updatedAt: now },
+  { id: 'demo-student-05', studentNo: '20260303', name: '赵安然', gender: 'female', enrollmentYear: 2023, status: 'active', grade: '初三', className: '1班', emergencyContact: contact('赵先生', '父亲', '13800003003'), riskLevel: 'crisis', tags: ['重点支持', '家庭变故'], createdAt: now, updatedAt: now },
+  { id: 'demo-student-06', studentNo: '20260316', name: '孙浩宇', gender: 'male', enrollmentYear: 2023, status: 'active', grade: '初三', className: '4班', emergencyContact: contact('孙女士', '母亲', '13800003016'), riskLevel: 'attention', tags: ['考试压力'], createdAt: now, updatedAt: now },
+  { id: 'demo-student-07', studentNo: '20260226', name: '吴语宁', gender: 'female', enrollmentYear: 2024, status: 'active', grade: '初二', className: '3班', emergencyContact: contact('吴女士', '监护人', '13800002026'), riskLevel: 'warning', tags: ['同伴关系', '单亲'], createdAt: now, updatedAt: now },
+  { id: 'demo-student-08', studentNo: '20260127', name: '刘泽宇', gender: 'male', enrollmentYear: 2025, status: 'active', grade: '初一', className: '4班', emergencyContact: contact('刘先生', '父亲', '13800001027'), riskLevel: 'normal', tags: ['适应观察'], createdAt: now, updatedAt: now },
 ]
 
 const demoConsultations: ConsultationRecord[] = [
@@ -107,5 +107,17 @@ export const studentService = {
   async getCensusResults(studentId: string): Promise<StudentCensusResult[]> {
     const batches = await db.census.toArray()
     return batches.flatMap((batch) => batch.records.filter((record) => record.studentId === studentId).map((record) => ({ ...record, batchId: batch.id, batchTitle: batch.title, date: batch.date, scaleName: batch.scaleName }))).sort((a, b) => b.date.localeCompare(a.date))
+  },
+  async importStudents(records: Array<Omit<Student, 'id' | 'createdAt' | 'updatedAt'>>) {
+    const timestamp = new Date().toISOString()
+    await db.students.bulkAdd(records.map((record) => ({ ...record, id: crypto.randomUUID(), createdAt: timestamp, updatedAt: timestamp })))
+  },
+  async promotionPreview(nextStartYear: number) {
+    const active = await db.students.where('status').equals('active').toArray()
+    return { graduate: active.filter((student) => nextStartYear - student.enrollmentYear >= 3).length, junior3: active.filter((student) => nextStartYear - student.enrollmentYear === 2).length, junior2: active.filter((student) => nextStartYear - student.enrollmentYear === 1).length }
+  },
+  async promote(nextStartYear: number) {
+    const active = await db.students.where('status').equals('active').toArray()
+    await db.transaction('rw', db.students, async () => { for (const student of active) { const year = nextStartYear - student.enrollmentYear; const graduated = year >= 3; await db.students.update(student.id, { status: graduated ? 'graduated' : 'active', grade: graduated ? '已毕业' : year === 2 ? '初三' : year === 1 ? '初二' : '初一', tags: graduated && !student.tags.includes(`${nextStartYear - 1}届毕业生`) ? [...student.tags, `${nextStartYear - 1}届毕业生`] : student.tags, updatedAt: new Date().toISOString() }) } })
   },
 }
