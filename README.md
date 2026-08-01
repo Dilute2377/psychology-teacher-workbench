@@ -8,8 +8,8 @@
 
 不需要安装 Node.js，也不需要打开命令行。请前往 [Release 下载页](https://github.com/Dilute2377/psychology-teacher-workbench/releases/latest) 选择 Windows EXE：
 
-- **安装版**：`PsychologyTeacherWorkbench-Setup-1.0.0.exe`。适合日常固定在一台电脑上使用，会创建桌面和开始菜单入口。
-- **便携版**：`PsychologyTeacherWorkbench-Portable-1.0.0.exe`。无需安装，可放在 U 盘携带；请同时定期导出 `.mindbag` 备份。
+- **安装版**：`Psychology-Teacher-Workbench-Setup-v1.0.2.exe`。适合日常固定在一台电脑上使用，会创建桌面和开始菜单入口。
+- **便携版**：`Psychology-Teacher-Workbench-Portable-v1.0.2.exe`。无需安装，可放在 U 盘携带；请同时定期导出 `.mindbag` 备份。
 
 ## 开始使用
 
