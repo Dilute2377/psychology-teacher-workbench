@@ -1,13 +1,13 @@
 @echo off
 setlocal
-title 心理老师工作台
+title Psychology Teacher Workbench
 cd /d "%~dp0"
 
 where npm >nul 2>nul
 if errorlevel 1 (
   echo.
-  echo 未检测到 Node.js / npm，无法启动工作台。
-  echo 请先安装 Node.js 的长期支持版，然后重新双击本文件。
+  echo Node.js / npm was not found.
+  echo Install the Node.js LTS release, then open this launcher again.
   echo.
   pause
   exit /b 1
@@ -15,19 +15,19 @@ if errorlevel 1 (
 
 if not exist "node_modules\" (
   echo.
-  echo 正在准备首次运行所需的本地依赖...
+  echo Preparing local dependencies for the first run...
   call npm install
   if errorlevel 1 (
     echo.
-    echo 依赖安装未完成，请检查网络连接后重试。
+    echo Dependency installation did not finish. Check your network and try again.
     pause
     exit /b 1
   )
 )
 
 echo.
-echo 正在启动心理老师工作台...
-echo 关闭此窗口即可停止本地服务。
+echo Starting the Psychology Teacher Workbench...
+echo Close this window to stop the local service.
 call npm run dev -- --host 127.0.0.1 --open
 
 endlocal
