@@ -1,10 +1,11 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import MainLayout from '../layouts/MainLayout.vue'
 import WorkspacePlaceholder from '../views/WorkspacePlaceholder.vue'
+import StudentDetailView from '../views/student/StudentDetailView.vue'
 
 const workspaceRoutes: RouteRecordRaw[] = [
   { path: '', name: 'dashboard', component: WorkspacePlaceholder, props: { title: '概览面板', description: '在这里查看本学期的心理工作全景与待办提醒。' } },
-  { path: 'students', name: 'students', component: WorkspacePlaceholder, props: { title: '学生档案', description: '选择一名学生，查看其 360° 心理档案与成长时间轴。' } },
+  { path: 'students', name: 'students', component: StudentDetailView },
   { path: 'consultations', name: 'consultations', component: WorkspacePlaceholder, props: { title: '个体咨询', description: 'SOAP 标准化咨询记录将在这里安全录入和追溯。' } },
   { path: 'census', name: 'census', component: WorkspacePlaceholder, props: { title: '心理普查', description: '导入普查批次、识别预警并关联学生档案。' } },
   { path: 'groups', name: 'groups', component: WorkspacePlaceholder, props: { title: '团体辅导', description: '创建团辅活动、关联成员，并记录个别观察。' } },

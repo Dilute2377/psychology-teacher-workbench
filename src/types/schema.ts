@@ -125,4 +125,8 @@ export interface SystemConfig {
 }
 
 /** 数据库存储配置的稳定主键；不改变 SystemConfig 的业务含义。 */
-export interface SystemConfigRecord extends SystemConfig { id: 'system' }
+export interface SystemConfigRecord extends SystemConfig {
+  id: 'system'
+  /** 防止老师手动清空演示数据后，在下次启动时又被自动写回。 */
+  demoDataSeededAt?: string
+}

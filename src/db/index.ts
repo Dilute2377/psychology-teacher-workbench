@@ -28,3 +28,17 @@ export class PsychologyWorkbenchDatabase extends Dexie {
 }
 
 export const db = new PsychologyWorkbenchDatabase()
+
+/**
+ * 学生档案的低层数据访问接口。视图层应通过 studentService 使用它，
+ * 以便未来在服务层统一加入加密、审计与导入导出策略。
+ */
+export const studentRepository = {
+  list: () => db.students.orderBy('name').toArray(),
+  getById: (id: string) => db.students.get(id),
+  create: (student: Student) => db.students.add(student),
+  update: (id: string, changes: Partial<Student>) => db.students.update(id, changes),
+  updateRiskLevel: (id: string, riskLevel: Student['riskLevel']) =>
+    db.students.update(id, { riskLevel, updatedAt: new Date().toISOString() }),
+  remove: (id: string) => db.students.delete(id),
+}

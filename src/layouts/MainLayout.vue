@@ -3,6 +3,7 @@ import { computed, ref, type Component } from 'vue'
 import { ArchiveRestore, BookOpenCheck, ChartNoAxesCombined, ChevronDown, ClipboardList, Gauge, GraduationCap, LockKeyhole, Search, Settings2, ShieldCheck, UsersRound, X } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 import { useWorkbenchStore } from '../stores/workbench'
+import StudentList from '../components/student/StudentList.vue'
 
 type NavigationItem = { label: string; to: string; icon: Component }
 
@@ -55,7 +56,8 @@ const closeDialog = () => { activeDialog.value = null }
       </aside>
       <section class="hidden min-w-0 flex-col border-r border-stone-200 bg-white lg:flex">
         <div class="border-b border-stone-100 px-5 py-5"><p class="text-xs font-medium tracking-wide text-teal-700">{{ pageLabel }}</p><h2 class="mt-1 text-lg font-semibold text-stone-800">列表与筛选区</h2></div>
-        <slot name="list"><div class="flex flex-1 items-center justify-center px-8 text-center"><p class="text-sm leading-6 text-stone-400">后续模块将在此嵌入搜索、筛选和可操作的业务列表。</p></div></slot>
+        <StudentList v-if="route.path === '/students'" />
+        <slot v-else name="list"><div class="flex flex-1 items-center justify-center px-8 text-center"><p class="text-sm leading-6 text-stone-400">后续模块将在此嵌入搜索、筛选和可操作的业务列表。</p></div></slot>
       </section>
       <main class="min-w-0 bg-stone-100 p-3 sm:p-5"><div class="h-full min-h-[calc(100vh-6.5rem)] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm"><slot name="workspace"><RouterView /></slot></div></main>
     </div>
