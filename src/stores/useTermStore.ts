@@ -8,12 +8,52 @@ export type TermUsage = { consultations: number; census: number; lessonRecords: 
 
 function nameFor(academicYear: string, semester: 1 | 2) { return `${academicYear}学年 第${semester === 1 ? '一' : '二'}学期` }
 
+function initialTerms(): TermConfig[] {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const academicStartYear = month >= 8 ? year : year - 1
+  const isFirstSemester = month >= 8 || month === 1
+  const currentAcademicYear = `${academicStartYear}-${academicStartYear + 1}`
+  const currentSemester = isFirstSemester ? 1 as const : 2 as const
+  const previousAcademicYear = isFirstSemester ? `${academicStartYear - 1}-${academicStartYear}` : currentAcademicYear
+  const previousSemester = isFirstSemester ? 2 as const : 1 as const
+  const nowIso = now.toISOString()
+  const makeTerm = (academicYear: string, semester: 1 | 2, isCurrent: boolean): TermConfig => {
+    const [startYear, endYear] = academicYear.split('-').map(Number)
+    return {
+      id: `${academicYear}-${semester}`,
+      academicYear,
+      semester,
+      name: nameFor(academicYear, semester),
+      startDate: semester === 1 ? `${startYear}-09-01` : `${endYear}-02-16`,
+      endDate: semester === 1 ? `${endYear}-01-20` : `${endYear}-07-10`,
+      isCurrent,
+      createdAt: nowIso,
+    }
+  }
+  return [makeTerm(currentAcademicYear, currentSemester, true), makeTerm(previousAcademicYear, previousSemester, false)]
+}
+
 export const useTermStore = defineStore('term', () => {
   const allTerms = ref<TermConfig[]>([])
   const currentTermId = ref('')
   const currentTerm = computed(() => allTerms.value.find((term) => term.id === currentTermId.value) ?? allTerms.value.find((term) => term.isCurrent))
+  let initializationPromise: Promise<void> | null = null
+
+  async function ensureInitialTerms() {
+    if (await db.terms.count()) return
+    if (!initializationPromise) {
+      initializationPromise = (async () => {
+        if (await db.terms.count()) return
+        await db.terms.bulkAdd(initialTerms())
+      })().finally(() => { initializationPromise = null })
+    }
+    await initializationPromise
+  }
 
   async function fetchTerms() {
+    await ensureInitialTerms()
     allTerms.value = (await db.terms.toArray()).sort((a, b) => b.startDate.localeCompare(a.startDate) || b.semester - a.semester)
     const selected = allTerms.value.find((term) => term.isCurrent) ?? allTerms.value[0]
     currentTermId.value = selected?.id ?? ''

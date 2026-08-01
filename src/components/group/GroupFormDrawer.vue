@@ -53,7 +53,8 @@ function addMatchingStudents() {
   candidateStudents.value.forEach(addMember)
 }
 async function save() {
-  if (!termStore.currentTermId || !form.title.trim() || !form.theme.trim() || !form.date || !selectedIds.value.length) { errorMessage.value = '请完成活动名称、主题、日期并至少选择一名成员。'; return }
+  if (!termStore.currentTermId) { errorMessage.value = '当前学期尚未就绪，请稍后重试。'; return }
+  if (!form.title.trim() || !form.theme.trim() || !form.date || !selectedIds.value.length) { errorMessage.value = '请完成活动名称、主题、日期并至少选择一名成员。'; return }
   saving.value = true; errorMessage.value = ''
   const draft = { termId: termStore.currentTermId, title: form.title.trim(), theme: form.theme.trim(), sessionIndex: Math.max(1, Number(form.sessionIndex) || 1), totalSessions: Math.max(1, Number(form.totalSessions) || 1), date: form.date, durationMinutes: Math.max(1, Number(form.durationMinutes) || 60), location: form.location.trim() || '未填写', memberStudentIds: [...selectedIds.value], processSummary: form.processSummary.trim(), memberObservations: Object.fromEntries(selectedIds.value.map((id) => [id, observations.value[id]?.trim() ?? ''])) }
   try { if (props.editingId) await groupStore.updateGroupActivity(props.editingId, draft); else await groupStore.addGroupActivity(draft); emit('saved'); groupStore.closeForm() } catch { errorMessage.value = '保存团辅记录失败，请稍后重试。' } finally { saving.value = false }

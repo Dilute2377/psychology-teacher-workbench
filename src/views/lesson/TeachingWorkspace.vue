@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { BookOpenCheck, CalendarDays, LayoutGrid } from '@lucide/vue'
-import { studentService } from '../../services/studentService'
 import { useSchoolConfigStore } from '../../stores/useSchoolConfigStore'
 import { useTeachingStore } from '../../stores/useTeachingStore'
 import { useTermStore } from '../../stores/useTermStore'
-import { useWorkbenchStore } from '../../stores/workbench'
-import { getStudentGrade } from '../../utils/academic'
-import type { CourseProgress, LessonPlan, ScheduleFrequency, Student, WeeklySchedule } from '../../types/schema'
+import type { CourseProgress, LessonPlan, ScheduleFrequency, WeeklySchedule } from '../../types/schema'
 import CourseProgressMatrix from '../../components/lesson/CourseProgressMatrix.vue'
 import WeeklyScheduleGrid from '../../components/lesson/WeeklyScheduleGrid.vue'
 import MaterialLibrary from '../../components/lesson/MaterialLibrary.vue'
@@ -17,18 +14,17 @@ import LessonLogDrawer from '../../components/lesson/LessonLogDrawer.vue'
 type Tab = 'progress' | 'schedule' | 'materials'
 type Detail = { plan: LessonPlan | null; grade: string; className: string; schedule?: WeeklySchedule | null; progress?: CourseProgress | null }
 type Placement = { plan?: LessonPlan | null; existingSchedule?: WeeklySchedule | null; dayOfWeek: number; period: number; frequency: ScheduleFrequency }
-const teachingStore = useTeachingStore(); const schoolConfig = useSchoolConfigStore(); const termStore = useTermStore(); const workbench = useWorkbenchStore()
-const activeTab = ref<Tab>('progress'); const scheduleView = ref<'all' | 'single' | 'double'>('all'); const students = ref<Student[]>([]); const placement = ref<Placement | null>(null); const progressUnitOpen = ref(false); const progressUnitPlanId = ref<string | undefined>(); const detail = ref<Detail | null>(null)
+const teachingStore = useTeachingStore(); const schoolConfig = useSchoolConfigStore(); const termStore = useTermStore()
+const activeTab = ref<Tab>('progress'); const scheduleView = ref<'all' | 'single' | 'double'>('all'); const placement = ref<Placement | null>(null); const progressUnitOpen = ref(false); const progressUnitPlanId = ref<string | undefined>(); const detail = ref<Detail | null>(null)
 const tabs = [{ id: 'progress' as const, label: '课程进度大盘', icon: LayoutGrid }, { id: 'schedule' as const, label: '完整心理周课表', icon: CalendarDays }, { id: 'materials' as const, label: '备课素材库', icon: BookOpenCheck }]
-const activeStudents = computed(() => students.value.filter((student) => student.status === 'active' && getStudentGrade(student, termStore.currentTerm) !== '已毕业'))
-const activeGrades = computed(() => new Set(activeStudents.value.map((student) => getStudentGrade(student, termStore.currentTerm))))
-const classes = computed(() => schoolConfig.enabledGrades.filter((grade) => activeGrades.value.has(grade)).flatMap((grade) => schoolConfig.classesForGrade(grade).map((className) => ({ grade, className }))))
+// 教学班级只由“学校与教学配置”定义，绝不依赖学生档案是否已录入。
+const classes = computed(() => schoolConfig.enabledGrades.flatMap((grade) => schoolConfig.classesForGrade(grade).map((className) => ({ grade, className }))))
 function openMatrix(plan: LessonPlan, schedule: WeeklySchedule | null) { detail.value = { plan, grade: schedule?.grade ?? '', className: schedule?.className ?? '', schedule, progress: schedule?.lessonPlanId ? teachingStore.courseProgress.find((item) => item.lessonPlanId === schedule.lessonPlanId && item.grade === schedule.grade && item.className === schedule.className) ?? null : null } }
 function requestProgressUnit(planId?: string) { progressUnitPlanId.value = planId; progressUnitOpen.value = true }
 function openSchedule(schedule: WeeklySchedule) { detail.value = { plan: schedule.lessonPlanId ? teachingStore.planById.get(schedule.lessonPlanId) ?? null : null, grade: schedule.grade, className: schedule.className, schedule, progress: schedule.lessonPlanId ? teachingStore.courseProgress.find((item) => item.lessonPlanId === schedule.lessonPlanId && item.grade === schedule.grade && item.className === schedule.className) ?? null : null } }
 function configureSchedule(schedule: WeeklySchedule | null, dayOfWeek: number, period: number, frequency: ScheduleFrequency, planId?: string) { placement.value = { plan: planId ? teachingStore.planById.get(planId) ?? null : schedule?.lessonPlanId ? teachingStore.planById.get(schedule.lessonPlanId) ?? null : null, existingSchedule: schedule, dayOfWeek, period, frequency } }
-async function load() { await Promise.all([schoolConfig.load(), teachingStore.fetchTeachingData()]); students.value = await studentService.list() }
-watch([() => termStore.currentTermId, () => workbench.studentVersion], () => void load())
+async function load() { await Promise.all([schoolConfig.load(), teachingStore.fetchTeachingData()]) }
+watch(() => termStore.currentTermId, () => void load())
 watch(() => teachingStore.progressUnitRequestId, (planId) => { if (planId) { teachingStore.consumeProgressUnitRequest(); requestProgressUnit(planId) } })
 onMounted(async () => { await load(); const planId = teachingStore.consumeProgressUnitRequest(); if (planId) requestProgressUnit(planId) })
 </script>
