@@ -126,7 +126,16 @@ export const studentRepository = {
   getById: (id: string) => db.students.get(id),
   create: (student: Student) => db.students.add(student),
   update: (id: string, changes: Partial<Student>) => db.students.update(id, changes),
-  updateRiskLevel: (id: string, riskLevel: Student['riskLevel']) =>
-    db.students.update(id, { riskLevel, updatedAt: new Date().toISOString() }),
+  async updateRiskLevel(id: string, riskLevel: Student['riskLevel']) {
+    const updatedAt = new Date().toISOString()
+    const student = await db.students.get(id)
+    const customFields = student?.customFields ?? {}
+    const previous = Array.isArray(customFields.riskHistory) ? customFields.riskHistory : []
+    const last = previous[previous.length - 1]
+    const riskHistory = last?.level === riskLevel
+      ? previous
+      : [...previous, { level: riskLevel, at: updatedAt }]
+    return db.students.update(id, { riskLevel, customFields: { ...customFields, riskHistory }, updatedAt })
+  },
   remove: (id: string) => db.students.delete(id),
 }

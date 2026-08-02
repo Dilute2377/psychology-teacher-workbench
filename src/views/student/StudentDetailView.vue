@@ -61,7 +61,17 @@ function fillEditForm(record: Student) { Object.assign(editForm, { name: record.
 async function loadStudent() { const id = workbench.selectedStudentId; if (!id) { student.value = undefined; consultations.value = []; censusResults.value = []; workTrails.value = []; return }; loading.value = true; student.value = await studentService.getById(id); if (student.value) { fillEditForm(student.value); const [records, census, trails] = await Promise.all([studentService.getConsultations(id), studentService.getCensusResults(id), db.workTrails.where('studentId').equals(id).toArray()]); consultations.value = records; censusResults.value = census; workTrails.value = trails.sort((a, b) => b.dateTime.localeCompare(a.dateTime)) }; loading.value = false }
 async function changeRisk(event: Event) { if (!student.value) return; const next = (event.target as HTMLSelectElement).value as RiskLevel; await studentService.updateRiskLevel(student.value.id, next); student.value.riskLevel = next; workbench.notifyStudentsChanged() }
 async function saveProfile() { if (!student.value) return; const manualGrade = editForm.manualGrade.trim(); const updated = await studentService.update(student.value.id, { name: editForm.name.trim(), studentNo: editForm.studentNo.trim(), gender: editForm.gender, status: editForm.status, grade: editForm.manualGradeEnabled ? manualGrade : student.value.grade, gradeOverride: editForm.manualGradeEnabled ? manualGrade : undefined, className: editForm.className.trim(), dormNumber: editForm.dormNumber.trim() || undefined, emergencyContact: { name: editForm.contactName.trim(), relation: editForm.relation.trim(), phone: editForm.phone.trim() }, tags: editForm.tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean) }); if (updated) { student.value = updated; fillEditForm(updated); workbench.notifyStudentsChanged() } }
-async function deleteStudent() { if (!student.value || !window.confirm(`确认删除 ${student.value.name} 的本地档案吗？此操作不可撤销。`)) return; await studentService.remove(student.value.id); student.value = undefined; workbench.selectedStudentId = null; workbench.notifyStudentsChanged() }
+async function deleteStudent() {
+  if (!student.value || !window.confirm(`确认删除 ${student.value.name} 的本地档案吗？此操作不可撤销。`)) return
+  try {
+    await studentService.remove(student.value.id)
+    student.value = undefined
+    workbench.selectedStudentId = null
+    workbench.notifyStudentsChanged()
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : '该档案暂时无法删除。')
+  }
+}
 function openConsultationDetail(record: ConsultationRecord) { detailRecord.value = record; detailRiskLevel.value = record.riskLevelAtTime ?? student.value?.riskLevel }
 function openTimelineConsultation(record: ConsultationRecord) { openConsultationDetail(record) }
 function startConsultation() { if (!student.value) return; workbench.pendingConsultationStudentId = student.value.id; consultationStore.openForm() }

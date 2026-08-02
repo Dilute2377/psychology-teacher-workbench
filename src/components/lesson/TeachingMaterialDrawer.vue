@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { X } from '@lucide/vue'
 import { useTeachingStore } from '../../stores/useTeachingStore'
 import { useSchoolConfigStore } from '../../stores/useSchoolConfigStore'
+import { focusModalField } from '../../utils/focusModalField'
 import type { TeachingMaterial } from '../../types/schema'
 
 const props = defineProps<{ editingId?: string | null }>()
@@ -10,7 +11,7 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 const teachingStore = useTeachingStore(); const schoolConfig = useSchoolConfigStore(); const saving = ref(false)
 const form = reactive({ type: 'activity' as TeachingMaterial['type'], title: '', description: '', resourceNote: '', gradeTarget: '', tagsText: '', attachment: undefined as TeachingMaterial['attachment'] })
 const types: Array<{ value: TeachingMaterial['type']; label: string }> = [{ value: 'video', label: '🎬 心理短片与视频' }, { value: 'activity', label: '💡 破冰与互动游戏' }, { value: 'case', label: '🖼️ 案例与图解素材' }, { value: 'survey', label: '📊 课堂小测量与问卷' }, { value: 'reference', label: '📂 参考 PPT 与讲义' }]
-onMounted(async () => { await schoolConfig.load(); const material = props.editingId ? teachingStore.teachingMaterials.find((item) => item.id === props.editingId) : undefined; if (material) Object.assign(form, { ...material, tagsText: material.tags?.join('，') ?? '' }) })
+onMounted(async () => { await schoolConfig.load(); const material = props.editingId ? teachingStore.teachingMaterials.find((item) => item.id === props.editingId) : undefined; if (material) Object.assign(form, { ...material, tagsText: material.tags?.join('，') ?? '' }); await focusModalField() })
 async function attachFile(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return

@@ -9,6 +9,7 @@ import { studentService } from '../../services/studentService'
 import { db } from '../../db'
 import { getStudentGrade } from '../../utils/academic'
 import { useWorkbenchStore } from '../../stores/workbench'
+import { focusModalField } from '../../utils/focusModalField'
 import type { ConsultationRecord, RiskLevel, SoapField, Student } from '../../types/schema'
 
 const props = defineProps<{ editingId: string | null }>()
@@ -105,6 +106,7 @@ onMounted(async () => {
   }
   workbench.pendingConsultationStudentId = null
   workbench.pendingConsultationContext = null
+  await focusModalField()
 })
 watch(() => props.editingId, async (id) => reset(id ? await db.consultations.get(id) : undefined))
 watch(studentSearch, (value) => { if (selectedStudent.value && value !== selectedStudent.value.name) form.studentId = '' })

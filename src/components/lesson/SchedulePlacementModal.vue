@@ -3,10 +3,12 @@ import { computed, ref } from 'vue'
 import { Trash2, X } from '@lucide/vue'
 import { useTeachingStore } from '../../stores/useTeachingStore'
 import type { LessonPlan, ScheduleFrequency, WeeklySchedule } from '../../types/schema'
+import { focusModalField } from '../../utils/focusModalField'
 
 const props = defineProps<{ plan?: LessonPlan | null; existingSchedule?: WeeklySchedule | null; dayOfWeek: number; period: number; frequency: ScheduleFrequency; classes: Array<{ grade: string; className: string }> }>()
 const emit = defineEmits<{ close: []; saved: [] }>(); const teachingStore = useTeachingStore(); const selected = ref(props.existingSchedule ? `${props.existingSchedule.grade}|${props.existingSchedule.className}` : ''); const planId = ref(props.plan?.id ?? props.existingSchedule?.lessonPlanId ?? ''); const fixedOnly = ref(!props.plan && !props.existingSchedule?.lessonPlanId); const saving = ref(false)
 const selectedClass = computed(() => props.classes.find((item) => `${item.grade}|${item.className}` === selected.value))
+void focusModalField()
 async function save() {
   if (!selectedClass.value || (!planId.value && !fixedOnly.value)) { window.alert('请选择授课班级，并选择教案或勾选固定班级。'); return }
   saving.value = true
