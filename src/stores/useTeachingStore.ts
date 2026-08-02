@@ -40,7 +40,23 @@ export const useTeachingStore = defineStore('teaching', () => {
   }
   async function addLessonPlan(draft: LessonPlanDraft) { const now = new Date().toISOString(); const record: LessonPlan = { ...draft, id: crypto.randomUUID(), createdAt: now, updatedAt: now }; await db.lessonPlans.add(record); await fetchTeachingData(); selectedPlanId.value = record.id; return record }
   async function updateLessonPlan(id: string, draft: Partial<LessonPlanDraft>) { await db.lessonPlans.update(id, { ...draft, updatedAt: new Date().toISOString() }); await fetchTeachingData() }
-  async function deleteLessonPlan(id: string) { const linked = (await db.weeklySchedules.where('lessonPlanId').equals(id).count()) + (await db.courseProgress.where('lessonPlanId').equals(id).count()) + (await db.lessonRecords.where('lessonPlanId').equals(id).count()) + (await db.teachingProgressUnits.where('lessonPlanId').equals(id).count()); if (linked > 0) throw new Error('该教案已关联进度单元、课表或历史授课记录，不能删除。'); await db.lessonPlans.delete(id); await fetchTeachingData() }
+  async function deleteLessonPlan(id: string) {
+    const [scheduleCount, progressCount, recordCount] = await Promise.all([
+      db.weeklySchedules.where('lessonPlanId').equals(id).count(),
+      db.courseProgress.where('lessonPlanId').equals(id).count(),
+      db.lessonRecords.where('lessonPlanId').equals(id).count(),
+    ])
+    if (scheduleCount + progressCount + recordCount > 0) {
+      throw new Error('该教案已关联课表或历史授课记录，请先清除关联后再删除。')
+    }
+    // 进度大盘行只是教案的引用元数据，没有授课记录时随教案一并清理。
+    await db.transaction('rw', db.lessonPlans, db.teachingProgressUnits, async () => {
+      await db.teachingProgressUnits.where('lessonPlanId').equals(id).delete()
+      await db.lessonPlans.delete(id)
+    })
+    if (selectedPlanId.value === id) selectedPlanId.value = null
+    await fetchTeachingData()
+  }
   async function createProgressUnit(lessonPlanId: string, targetGrades: string[]) {
     const termId = currentTermId.value; if (!termId) throw new Error('请先选择当前学期。')
     const grades = [...new Set(targetGrades)].filter(Boolean); if (!grades.length) throw new Error('请至少选择一个授课年级。')
