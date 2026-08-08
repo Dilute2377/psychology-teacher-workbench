@@ -8,6 +8,7 @@ import { STAGE_GRADES } from '../../constants/grades'
 import type { Student } from '../../types/schema'
 import { focusModalField } from '../../utils/focusModalField'
 
+const props = defineProps<{ selectedFile?: File | null }>()
 const emit = defineEmits<{ close: []; imported: [] }>()
 const termStore = useTermStore(); const schoolConfig = useSchoolConfigStore()
 const importGrade = ref(''); const rows = ref<Array<{ student: Omit<Student, 'id' | 'createdAt' | 'updatedAt'>; error?: string }>>([])
@@ -36,7 +37,8 @@ async function read(file: File) {
 }
 async function confirm() { const valid = rows.value.filter((row) => !row.error).map((row) => row.student); if (valid.length) await studentService.importStudents(valid); emit('imported'); emit('close') }
 watch(importGrade, () => { rows.value = [] })
-onMounted(async () => { await schoolConfig.load(); importGrade.value = schoolConfig.enabledGrades[0] ?? '初一'; await focusModalField() })
+watch(() => props.selectedFile, (file) => { if (file) void read(file) })
+onMounted(async () => { await schoolConfig.load(); importGrade.value = schoolConfig.enabledGrades[0] ?? '初一'; if (props.selectedFile) await read(props.selectedFile); await focusModalField() })
 </script>
 
 <template>

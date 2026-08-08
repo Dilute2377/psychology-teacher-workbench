@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory, createWebHistory, type RouteRecordR
 import MainLayout from '../layouts/MainLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
 import StudentDetailView from '../views/student/StudentDetailView.vue'
+import KeyStudentsMasterView from '../views/student/KeyStudentsMasterView.vue'
 import ConsultationView from '../views/consultation/ConsultationView.vue'
 import CensusView from '../views/census/CensusView.vue'
 import GroupView from '../views/group/GroupView.vue'
@@ -12,6 +13,7 @@ import SettingsView from '../views/settings/SettingsView.vue'
 const workspaceRoutes: RouteRecordRaw[] = [
   { path: '', name: 'dashboard', component: DashboardView },
   { path: 'students', name: 'students', component: StudentDetailView },
+  { path: 'students/key-students', name: 'key-students', component: KeyStudentsMasterView },
   { path: 'consultations', name: 'consultations', component: ConsultationView },
   { path: 'census', name: 'census', component: CensusView },
   { path: 'groups', name: 'groups', component: GroupView },

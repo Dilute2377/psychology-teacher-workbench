@@ -7,7 +7,7 @@ import type { SystemConfigRecord } from '../types/schema'
 export type TeachingProfile = NonNullable<SystemConfigRecord['teachingProfile']>
 export type SchoolProfile = NonNullable<SystemConfigRecord['schoolProfile']>
 
-const fallback = (): SystemConfigRecord => ({ id: 'system', currentTermId: '', themeMode: 'warm', autoBackupIntervalDays: 14, customCategories: [] })
+const fallback = (): SystemConfigRecord => ({ id: 'system', currentTermId: '', themeMode: 'warm', autoBackupIntervalDays: 1, customCategories: [] })
 const defaultSchoolProfile = (): SchoolProfile => ({
   enabledStages: ['junior'],
   classCountByGrade: Object.fromEntries(K12_GRADES.map((grade) => [grade, 10])),

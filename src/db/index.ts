@@ -1,5 +1,9 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { CensusBatch, CensusResult, CommunicationLog, ConsultationRecord, CourseProgress, GroupActivity, LessonPlan, LessonRecord, Student, SystemConfigRecord, TeachingMaterial, TeachingProgressUnit, TermConfig, TimelineEvent, WeeklySchedule, WorkTrail } from '../types/schema'
+import type { CensusBatch, CensusResult, CommunicationLog, ConsultationRecord, CourseProgress, GroupActivity, LessonPlan, LessonRecord, Student, StudentWarningLevel, SystemConfigRecord, TeachingMaterial, TeachingProgressUnit, TermConfig, TimelineEvent, WeeklySchedule, WorkTrail } from '../types/schema'
+
+function warningLevelForRisk(riskLevel: Student['riskLevel']): StudentWarningLevel {
+  return riskLevel === 'crisis' ? 'red' : riskLevel === 'warning' ? 'orange' : riskLevel === 'attention' ? 'yellow' : 'none'
+}
 
 /** 浏览器本地数据库的唯一入口。敏感字段加密将在阶段五以独立服务接入。 */
 export class PsychologyWorkbenchDatabase extends Dexie {
@@ -112,6 +116,17 @@ export class PsychologyWorkbenchDatabase extends Dexie {
       }))
       await tx.table('workTrails').bulkPut(trails)
     })
+    this.version(15).stores({ students: 'id, studentNo, name, enrollmentYear, status, grade, gradeOverride, className, riskLevel, warningLevel, createdAt, updatedAt', consultations: 'id, studentId, termId, date, visitType, sessionIndex, createdAt, updatedAt', terms: 'id, academicYear, semester, isCurrent, startDate, endDate, createdAt', census: 'id, termId, date, scaleName', censusBatches: 'id, termId, date, scaleName, createdAt', censusResults: 'id, batchId, studentId, studentNo, isFlagged, createdAt', groupActivities: 'id, termId, date, theme, createdAt, updatedAt', communicationLogs: 'id, studentId, studentName, termId, targetType, dateTime, createdAt', workTrails: 'id, category, isStudentRelated, studentId, studentName, stakeholderName, dateTime, createdAt', lessonRecords: 'id, termId, grade, className, lessonPlanId, weeklyScheduleId, date, createdAt, updatedAt', lessonPlans: 'id, gradeTarget, topicTitle, createdAt, updatedAt', teachingMaterials: 'id, type, gradeTarget, createdAt, updatedAt', weeklySchedules: 'id, termId, grade, className, dayOfWeek, period, lessonPlanId, frequency, status, completedAt, createdAt, updatedAt', courseProgress: 'id, termId, grade, className, lessonPlanId, lessonRecordId, completedAt, updatedAt', teachingProgressUnits: 'id, termId, lessonPlanId, archivedAt, createdAt, updatedAt', timelineEvents: 'id, studentId, termId, type, date, sourceId', settings: 'id' }).upgrade(async (tx) => {
+      const students = await tx.table('students').toArray() as Student[]
+      const consultations = await tx.table('consultations').toArray() as ConsultationRecord[]
+      const caseStudentIds = new Set(consultations.map((record) => record.studentId))
+      await tx.table('students').bulkPut(students.map((student) => ({
+        ...student,
+        warningLevel: student.warningLevel ?? warningLevelForRisk(student.riskLevel),
+        isIndividualCase: student.isIndividualCase ?? caseStudentIds.has(student.id),
+        medicalAttachments: student.medicalAttachments ?? [],
+      })))
+    })
   }
 }
 
@@ -135,7 +150,7 @@ export const studentRepository = {
     const riskHistory = last?.level === riskLevel
       ? previous
       : [...previous, { level: riskLevel, at: updatedAt }]
-    return db.students.update(id, { riskLevel, customFields: { ...customFields, riskHistory }, updatedAt })
+    return db.students.update(id, { riskLevel, warningLevel: warningLevelForRisk(riskLevel), customFields: { ...customFields, riskHistory }, updatedAt })
   },
   remove: (id: string) => db.students.delete(id),
 }

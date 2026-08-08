@@ -14,10 +14,14 @@ export const OVERVIEW_RISK_META: Array<{ key: OverviewRiskLevel; label: string; 
 ]
 
 export function normalizeOverviewRiskLevel(level?: string | null): OverviewRiskLevel {
-  if (level === 'level_1' || level === 'crisis') return 'level_1'
-  if (level === 'level_2' || level === 'warning') return 'level_2'
-  if (level === 'level_3' || level === 'attention') return 'level_3'
+  if (level === 'level_1' || level === 'crisis' || level === 'red') return 'level_1'
+  if (level === 'level_2' || level === 'warning' || level === 'orange') return 'level_2'
+  if (level === 'level_3' || level === 'attention' || level === 'yellow') return 'level_3'
   return 'normal'
+}
+
+function overviewLevelForStudent(student: Student) {
+  return normalizeOverviewRiskLevel(student.warningLevel ?? student.riskLevel)
 }
 
 export const useOverviewStore = defineStore('overview', () => {
@@ -30,7 +34,7 @@ export const useOverviewStore = defineStore('overview', () => {
   const totalActiveStudents = computed(() => activeStudents.value.length)
   const riskCounts = computed(() => {
     const counts = { level_1: 0, level_2: 0, level_3: 0, normal: 0 } as Record<OverviewRiskLevel, number>
-    activeStudents.value.forEach((student) => { counts[normalizeOverviewRiskLevel(student.riskLevel)] += 1 })
+    activeStudents.value.forEach((student) => { counts[overviewLevelForStudent(student)] += 1 })
     return counts
   })
   const riskDistribution = computed(() => OVERVIEW_RISK_META.map((item) => ({ ...item, count: riskCounts.value[item.key], percentage: totalActiveStudents.value ? (riskCounts.value[item.key] / totalActiveStudents.value) * 100 : 0 })))
@@ -41,7 +45,7 @@ export const useOverviewStore = defineStore('overview', () => {
   const historicalRiskStudentCount = computed(() => {
     const ids = new Set<string>()
     students.value.forEach((student) => {
-      if (normalizeOverviewRiskLevel(student.riskLevel) !== 'normal') ids.add(student.id)
+      if (overviewLevelForStudent(student) !== 'normal') ids.add(student.id)
       const history = student.customFields?.riskHistory
       if (Array.isArray(history) && history.some((item: { level?: RiskLevel | string }) => normalizeOverviewRiskLevel(item.level) !== 'normal')) ids.add(student.id)
     })

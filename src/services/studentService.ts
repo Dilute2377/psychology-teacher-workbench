@@ -1,5 +1,5 @@
 import { db, studentRepository } from '../db'
-import type { CensusResult, RiskLevel, Student } from '../types/schema'
+import type { CensusResult, RiskLevel, Student, StudentWarningLevel } from '../types/schema'
 import { STAGE_GRADES } from '../constants/grades'
 import { inferSchoolStage } from '../utils/academic'
 
@@ -17,6 +17,9 @@ export interface StudentCensusResult extends CensusResult {
 }
 
 let reconcilePromise: Promise<void> | null = null
+function warningLevelForRisk(riskLevel: RiskLevel): StudentWarningLevel {
+  return riskLevel === 'crisis' ? 'red' : riskLevel === 'warning' ? 'orange' : riskLevel === 'attention' ? 'yellow' : 'none'
+}
 
 /**
  * 咨询记录必须能在学生主档案中被定位。历史版本允许先写入咨询、后删除学生，
@@ -43,6 +46,9 @@ async function reconcileOrphanConsultations() {
       className: '1班',
       emergencyContact: { name: '', relation: '', phone: '' },
       riskLevel: 'normal' as const,
+      warningLevel: 'none' as const,
+      isIndividualCase: true,
+      medicalAttachments: [],
       tags: ['待补全档案'],
       customFields: { reconciliationSource: 'consultation' },
       createdAt: record.createdAt || timestamp,
@@ -69,12 +75,13 @@ export const studentService = {
     const timestamp = new Date().toISOString()
     const existing = await db.students.where('studentNo').equals(student.studentNo.trim()).first()
     if (existing) throw new Error(`学号“${student.studentNo.trim()}”已存在；同名学生可以新增，但学号必须唯一。`)
-    const record: Student = { ...student, id: crypto.randomUUID(), createdAt: timestamp, updatedAt: timestamp }
+    const record: Student = { ...student, warningLevel: student.warningLevel ?? warningLevelForRisk(student.riskLevel), isIndividualCase: student.isIndividualCase ?? false, medicalAttachments: student.medicalAttachments ?? [], id: crypto.randomUUID(), createdAt: timestamp, updatedAt: timestamp }
     await studentRepository.create(record)
     return record
   },
   async update(id: string, changes: Partial<Omit<Student, 'id' | 'createdAt'>>) {
-    await studentRepository.update(id, { ...changes, updatedAt: new Date().toISOString() })
+    const nextRiskLevel = changes.riskLevel
+    await studentRepository.update(id, { ...changes, ...(nextRiskLevel ? { warningLevel: warningLevelForRisk(nextRiskLevel) } : {}), updatedAt: new Date().toISOString() })
     return studentRepository.getById(id)
   },
   updateRiskLevel: studentRepository.updateRiskLevel,
@@ -113,7 +120,7 @@ export const studentService = {
       if (!studentNo || existingNumbers.has(studentNo) || incomingNumbers.has(studentNo)) throw new Error(`学号“${studentNo || '空白'}”重复；同名学生可以保留，但学号必须唯一。`)
       incomingNumbers.add(studentNo)
     }
-    await db.students.bulkAdd(records.map((record) => ({ ...record, id: crypto.randomUUID(), createdAt: timestamp, updatedAt: timestamp })))
+    await db.students.bulkAdd(records.map((record) => ({ ...record, warningLevel: record.warningLevel ?? warningLevelForRisk(record.riskLevel), isIndividualCase: record.isIndividualCase ?? false, medicalAttachments: record.medicalAttachments ?? [], id: crypto.randomUUID(), createdAt: timestamp, updatedAt: timestamp })))
   },
   async promotionPreview(nextStartYear: number) {
     const active = (await db.students.where('status').equals('active').toArray()).filter((student) => !student.gradeOverride?.trim())

@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ArrowDownUp, Plus, Search, UserRound, X } from '@lucide/vue'
 import { studentService } from '../../services/studentService'
 import { useWorkbenchStore } from '../../stores/workbench'
+import { useSearchStore } from '../../stores/useSearchStore'
 import { useTermStore } from '../../stores/useTermStore'
 import type { RiskLevel, Student } from '../../types/schema'
 import BatchImportModal from './BatchImportModal.vue'
@@ -11,12 +12,15 @@ import { useSchoolConfigStore } from '../../stores/useSchoolConfigStore'
 import { STAGE_GRADES } from '../../constants/grades'
 
 const workbench = useWorkbenchStore()
+const searchStore = useSearchStore()
 const termStore = useTermStore()
 const schoolConfig = useSchoolConfigStore()
 /** 全量数据源：筛选选项永远只能从这里计算。 */
 const allStudents = ref<Student[]>([])
 const isAdding = ref(false)
 const isImporting = ref(false)
+const fileInput = ref<HTMLInputElement>()
+const importFile = ref<File | null>(null)
 const includeGraduated = ref(false)
 const grade = ref('')
 const className = ref('')
@@ -33,7 +37,7 @@ const classOptions = computed(() => grade.value ? schoolConfig.classesForGrade(g
 const riskOptions: Array<{ label: string; value: RiskLevel }> = [
   { label: '正常', value: 'normal' }, { label: '关注', value: 'attention' }, { label: '重点关注', value: 'warning' }, { label: '危机预警', value: 'crisis' },
 ]
-const keyword = computed({ get: () => workbench.globalSearch, set: (value: string) => { workbench.globalSearch = value } })
+const keyword = computed({ get: () => searchStore.searchKeyword, set: (value: string) => searchStore.setSearchKeyword(value) })
 
 const riskLabel: Record<RiskLevel, string> = { normal: '正常', attention: '关注', warning: '重点关注', crisis: '危机预警' }
 const riskClass: Record<RiskLevel, string> = { normal: 'bg-emerald-50 text-emerald-700 ring-emerald-200', attention: 'bg-amber-50 text-amber-700 ring-amber-200', warning: 'bg-orange-50 text-orange-700 ring-orange-200', crisis: 'bg-rose-50 text-rose-700 ring-rose-200' }
@@ -67,6 +71,8 @@ async function loadStudents() {
 }
 
 function selectStudent(student: Student) { workbench.selectedStudentId = student.id }
+function triggerImport() { fileInput.value?.click() }
+function handleImportFile(event: Event) { importFile.value = (event.target as HTMLInputElement).files?.[0] ?? null; if (importFile.value) isImporting.value = true; (event.target as HTMLInputElement).value = '' }
 function stageForGrade(gradeName: string) { return (Object.entries(STAGE_GRADES).find(([, grades]) => grades.includes(gradeName as never))?.[0] ?? 'junior') as Student['educationStage'] }
 function gradeOffset(gradeName: string) { return Object.values(STAGE_GRADES).find((grades) => grades.includes(gradeName as never))?.indexOf(gradeName as never) ?? 0 }
 function resetNewStudent() { newStudent.value = { name: '', studentNo: '', gender: 'female', grade: schoolConfig.enabledGrades[0] ?? '初一', className: '1班', contactName: '', relation: '家长', phone: '', riskLevel: 'normal', tags: '' } }
@@ -96,7 +102,7 @@ onMounted(async () => { await schoolConfig.load(); resetNewStudent(); await load
 <template>
   <div class="flex h-full min-h-0 flex-col">
     <div class="space-y-3 border-b border-stone-100 p-4">
-      <div class="flex items-center justify-between gap-2"><span class="text-sm font-semibold text-stone-800">学生档案</span><span class="flex gap-1"><button class="rounded-lg border px-2 py-1 text-xs" @click="isImporting = true">导入</button><button class="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-800" type="button" @click="isAdding = true"><Plus :size="15" />新增</button></span></div>
+      <div class="flex items-center justify-between gap-2"><span class="text-sm font-semibold text-stone-800">学生档案</span><span class="flex gap-1"><button class="rounded-lg border px-2 py-1 text-xs" type="button" @click="triggerImport">导入</button><input ref="fileInput" class="hidden" type="file" accept=".xlsx,.csv" @change="handleImportFile" /><button class="inline-flex items-center gap-1 rounded-lg bg-teal-700 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-800" type="button" @click="isAdding = true"><Plus :size="15" />新增</button></span></div>
       <label class="flex items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-2 text-sm text-stone-400"><Search :size="15" /><input v-model="keyword" class="w-full bg-transparent outline-none" placeholder="搜索姓名、学号或标签" /></label>
       <div class="grid grid-cols-3 gap-2"><select v-model="grade" class="min-w-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"><option value="">全部年级</option><option v-for="item in gradeOptions" :key="item" :value="item">{{ item }}</option></select><select v-model="className" class="min-w-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"><option value="">全部班级</option><option v-for="item in classOptions" :key="item" :value="item">{{ item }}</option></select><select v-model="riskLevel" class="min-w-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600"><option value="">全部预警</option><option v-for="item in riskOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></div><div class="flex items-center justify-between gap-2"><label class="flex items-center gap-2 text-xs text-stone-600"><input v-model="includeGraduated" type="checkbox" class="accent-teal-700" />包含非在读学生</label><button class="inline-flex items-center gap-1 rounded-md border border-stone-200 px-2 py-1 text-xs font-medium text-stone-600 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800" type="button" :title="riskSort === 'desc' ? '当前：危机程度从高到低，点击切换为从低到高' : '当前：危机程度从低到高，点击切换为从高到低'" @click="toggleRiskSort"><ArrowDownUp :size="13" />危机：{{ riskSort === 'desc' ? '高→低' : '低→高' }}</button></div>
     </div>
@@ -109,5 +115,5 @@ onMounted(async () => { await schoolConfig.load(); resetNewStudent(); await load
   </div>
 
   <Teleport to="body"><div v-if="isAdding" class="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/30 p-4" @click.self="isAdding = false"><form class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl" @submit.prevent="createStudent"><div class="flex items-center justify-between"><h2 class="text-base font-semibold">新增学生</h2><button type="button" class="rounded-lg p-1 text-stone-400 hover:bg-stone-100" @click="isAdding = false"><X :size="18" /></button></div><p v-if="errorMessage" class="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">{{ errorMessage }}</p><div class="mt-4 grid grid-cols-2 gap-3 text-sm"><label>姓名<input v-model="newStudent.name" required class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label>学号<input v-model="newStudent.studentNo" required class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label>年级<select v-model="newStudent.grade" required class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"><option v-for="item in gradeOptions" :key="item">{{ item }}</option></select></label><label>班级<select v-model="newStudent.className" required class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"><option v-for="item in schoolConfig.classesForGrade(newStudent.grade)" :key="item">{{ item }}</option></select></label><label>性别<select v-model="newStudent.gender" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"><option value="female">女</option><option value="male">男</option><option value="other">其他</option></select></label><label>危机预警等级<select v-model="newStudent.riskLevel" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"><option value="normal">正常</option><option value="attention">关注</option><option value="warning">重点关注</option><option value="crisis">危机预警</option></select></label><label>紧急联系人<input v-model="newStudent.contactName" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label>联系电话<input v-model="newStudent.phone" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label class="col-span-2">快捷标签（逗号分隔）<input v-model="newStudent.tags" class="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2" placeholder="如：学业焦虑，人际敏感" /></label></div><div class="mt-5 flex justify-end gap-2"><button type="button" class="rounded-lg px-3 py-2 text-sm text-stone-600 hover:bg-stone-100" @click="isAdding = false">取消</button><button class="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800">保存学生</button></div></form></div></Teleport>
-  <BatchImportModal v-if="isImporting" @close="isImporting = false" @imported="workbench.notifyStudentsChanged()" />
+  <BatchImportModal v-if="isImporting" :selected-file="importFile" @close="isImporting = false; importFile = null" @imported="workbench.notifyStudentsChanged(); importFile = null" />
 </template>

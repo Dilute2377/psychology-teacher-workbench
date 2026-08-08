@@ -37,7 +37,7 @@ export const useConsultationStore = defineStore('consultation', () => {
     const previous = Array.isArray(customFields.riskHistory) ? customFields.riskHistory : []
     const last = previous[previous.length - 1]
     const riskHistory = last?.level === riskLevel ? previous : [...previous, { level: riskLevel, at: updatedAt }]
-    await db.students.update(studentId, { riskLevel, customFields: { ...customFields, riskHistory }, updatedAt })
+    await db.students.update(studentId, { riskLevel, warningLevel: riskLevel === 'crisis' ? 'red' : riskLevel === 'warning' ? 'orange' : riskLevel === 'attention' ? 'yellow' : 'none', isIndividualCase: true, customFields: { ...customFields, riskHistory }, updatedAt })
   }
 
   async function fetchConsultations(filters: ConsultationFilters = {}) {
@@ -54,6 +54,7 @@ export const useConsultationStore = defineStore('consultation', () => {
     await db.transaction('rw', db.consultations, db.students, async () => {
       await db.consultations.add(record)
       if (riskLevel) await writeStudentRiskSnapshot(record.studentId, riskLevel, now)
+      else await db.students.update(record.studentId, { isIndividualCase: true, updatedAt: now })
     })
     await fetchConsultations()
     selectedConsultationId.value = record.id
@@ -68,6 +69,7 @@ export const useConsultationStore = defineStore('consultation', () => {
       await db.consultations.update(id, { ...changes, ...snapshot, updatedAt })
       const saved = await db.consultations.get(id)
       if (saved && riskLevel) await writeStudentRiskSnapshot(saved.studentId, riskLevel, updatedAt)
+      else if (saved) await db.students.update(saved.studentId, { isIndividualCase: true, updatedAt: updatedAt })
     })
     const record = await db.consultations.get(id)
     await fetchConsultations()

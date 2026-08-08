@@ -3,15 +3,16 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { FileText, Image, Mic, Trash2, UploadCloud, Video, X } from '@lucide/vue'
 import { db } from '../../db'
 import { studentService } from '../../services/studentService'
-import { useWorkTrailStore } from '../../stores/useWorkTrailStore'
+import { useWorkTrailStore, WORK_TRAIL_CATEGORY_OPTIONS } from '../../stores/useWorkTrailStore'
 import type { CommunicationAttachment, Student, WorkTrail } from '../../types/schema'
 import { focusModalField } from '../../utils/focusModalField'
+import { prepareInlineAttachment } from '../../services/storageBoundary'
 
 const props = defineProps<{ editingId?: string | null; initialStudentId?: string | null }>(); const emit = defineEmits<{ saved: [] }>(); const store = useWorkTrailStore(); const students = ref<Student[]>([]); const studentSearch = ref(''); const saving = ref(false)
 const nowLocal = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 const form = reactive({ category: 'parent' as WorkTrail['category'], isStudentRelated: Boolean(props.initialStudentId), studentId: props.initialStudentId ?? '', stakeholderName: '', dateTime: nowLocal(), remindEnabled: false, remindAt: '', title: '', content: '', attachments: [] as CommunicationAttachment[] })
 const selectedStudent = computed(() => students.value.find((item) => item.id === form.studentId)); const filteredStudents = computed(() => { const query = studentSearch.value.trim().toLowerCase(); return !query ? students.value : students.value.filter((student) => `${student.name} ${student.studentNo}`.toLowerCase().includes(query)) })
-const categories: Array<{ value: WorkTrail['category']; label: string }> = [{ value: 'parent', label: '家长沟通' }, { value: 'teacher', label: '班主任协同' }, { value: 'leader', label: '领导指令' }, { value: 'handover', label: '任务交接' }, { value: 'subbing', label: '代课与杂务' }, { value: 'disclaimer', label: '危机免责存证' }]
+const categories = WORK_TRAIL_CATEGORY_OPTIONS
 function normalize(value: string) { const result = value.replace('T', ' ').trim(); return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(result) ? result : new Date().toISOString().slice(0, 16).replace('T', ' ') }
 function parseLocalInput(value: string) {
   const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/)
@@ -21,7 +22,18 @@ function icon(type: CommunicationAttachment['type']) { return type === 'image' ?
 function serializeAttachments() { return form.attachments.map(({ id, name, type, url, size }) => ({ id, name, type, url, size })) }
 function selectStudent(id: string) { form.studentId = id; studentSearch.value = students.value.find((student) => student.id === id)?.name ?? '' }
 function clearStudent() { form.studentId = '' }
-async function addFiles(files: FileList | File[]) { try { const items = await Promise.all([...files].map(async (file) => { const url = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file) }); return { id: crypto.randomUUID(), name: file.name, type: file.type.startsWith('image/') ? 'image' : file.type.startsWith('audio/') ? 'audio' : file.type.startsWith('video/') ? 'video' : 'file', url, size: `${Math.max(1, Math.round(file.size / 1024))} KB` } as CommunicationAttachment })); form.attachments.push(...items) } catch { store.showToast('文件读取失败，请重新选择文件。', 'error') } }
+async function addFiles(files: FileList | File[]) {
+  const items: CommunicationAttachment[] = []
+  const errors: string[] = []
+  for (const file of [...files]) {
+    try {
+      const prepared = await prepareInlineAttachment(file)
+      items.push({ id: crypto.randomUUID(), name: file.name, type: prepared.kind, url: prepared.dataUrl, size: prepared.sizeLabel })
+    } catch (error) { errors.push(error instanceof Error ? error.message : `无法读取 ${file.name}`) }
+  }
+  form.attachments.push(...items)
+  if (errors.length) store.showToast(errors.join('；'), 'error')
+}
 function validate() {
   if (!form.title.trim() || !form.stakeholderName.trim()) { store.showToast('请填写留痕主题和对接人！', 'warning'); return false }
   if (!form.content.trim()) { store.showToast('请填写详细过程记录！', 'warning'); return false }

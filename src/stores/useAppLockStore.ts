@@ -10,7 +10,7 @@ export const useAppLockStore = defineStore('appLock', () => {
   const pinHash = ref('')
   const isConfigured = computed(() => Boolean(pinHash.value))
   async function load() { pinHash.value = (await db.settings.get('system'))?.appLockPinHash ?? '' }
-  async function setPin(pin: string) { if (!validPin(pin)) throw new Error('请设置 4 至 6 位数字 PIN。'); const hash = await hashPin(pin); const current = await db.settings.get('system'); await db.settings.put({ ...(current ?? { id: 'system', currentTermId: '', themeMode: 'warm', autoBackupIntervalDays: 14, customCategories: [] }), appLockPinHash: hash }); pinHash.value = hash }
+  async function setPin(pin: string) { if (!validPin(pin)) throw new Error('请设置 4 至 6 位数字 PIN。'); const hash = await hashPin(pin); const current = await db.settings.get('system'); await db.settings.put({ ...(current ?? { id: 'system', currentTermId: '', themeMode: 'warm', autoBackupIntervalDays: 1, customCategories: [] }), appLockPinHash: hash }); pinHash.value = hash }
   async function verify(pin: string) { return validPin(pin) && Boolean(pinHash.value) && await hashPin(pin) === pinHash.value }
   function lock() { isLocked.value = true }
   function unlock() { isLocked.value = false }

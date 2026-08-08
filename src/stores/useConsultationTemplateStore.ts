@@ -13,7 +13,7 @@ export const defaultSoapTemplates: SoapTemplates = {
 const defaultWords = ['神情紧张', '言语连贯', '目光回避', '情绪低落', '躯体化抖腿']
 
 function baseConfig(): SystemConfigRecord {
-  return { id: 'system', currentTermId: '', themeMode: 'warm', autoBackupIntervalDays: 14, customCategories: [], soapTemplates: { ...defaultSoapTemplates }, observationWords: [...defaultWords] }
+  return { id: 'system', currentTermId: '', themeMode: 'warm', autoBackupIntervalDays: 1, customCategories: [], soapTemplates: { ...defaultSoapTemplates }, observationWords: [...defaultWords] }
 }
 
 export const useConsultationTemplateStore = defineStore('consultationTemplate', () => {

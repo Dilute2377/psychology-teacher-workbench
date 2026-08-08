@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { AlertTriangle, ClipboardList, HeartPulse, Plus, ShieldAlert, UsersRound } from '@lucide/vue'
-import { useRouter } from 'vue-router'
+import { AlertTriangle, ClipboardList, HeartPulse, ShieldAlert, UsersRound } from '@lucide/vue'
 import { OVERVIEW_RISK_META, useOverviewStore } from '../stores/useOverviewStore'
-import { useConsultationStore } from '../stores/useConsultationStore'
 import { useTermStore } from '../stores/useTermStore'
 import { useWorkbenchStore } from '../stores/workbench'
 import ReportExportModal from '../components/report/ReportExportModal.vue'
@@ -11,8 +9,6 @@ import ReportExportModal from '../components/report/ReportExportModal.vue'
 const overview = useOverviewStore()
 const termStore = useTermStore()
 const workbench = useWorkbenchStore()
-const consultationStore = useConsultationStore()
-const router = useRouter()
 const isReportExportOpen = ref(false)
 const warningMeta = OVERVIEW_RISK_META.filter((item) => item.key !== 'normal')
 
@@ -25,19 +21,13 @@ const formatPercent = (value: number) => value.toFixed(2)
 const formatNumber = (value: number) => new Intl.NumberFormat('zh-CN').format(value)
 
 async function load() { await overview.load(termStore.currentTermId) }
-function startConsultation() {
-  workbench.pendingConsultationStudentId = workbench.selectedStudentId
-  consultationStore.openForm()
-  router.push('/consultations')
-}
-
 onMounted(load)
 watch([() => termStore.currentTermId, () => workbench.studentVersion], () => void load())
 </script>
 
 <template>
   <section class="flex h-full min-h-0 flex-col overflow-hidden">
-    <header class="shrink-0 border-b border-stone-200 p-6"><div class="flex flex-wrap items-start justify-between gap-3"><div><p class="text-sm font-medium text-teal-700">{{ termStore.currentTerm?.name ?? '当前学期' }}</p><h1 class="mt-1 text-xl font-semibold text-stone-800">心理工作全景</h1><p class="mt-1 text-xs text-stone-400">国家三级心理危机预警 · 实时在册与历史累计双流统计</p></div><div class="flex flex-wrap items-center gap-2"><button type="button" class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-emerald-700" @click="isReportExportOpen = true"><span class="text-base">📊</span><span>导出心理健康周/月报</span></button><button type="button" class="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800" @click="startConsultation"><Plus :size="16" />快捷记录咨询</button></div></div></header>
+    <header class="shrink-0 border-b border-stone-200 p-6"><div class="flex flex-wrap items-start justify-between gap-3"><div><p class="text-sm font-medium text-teal-700">{{ termStore.currentTerm?.name ?? '当前学期' }}</p><h1 class="mt-1 text-xl font-semibold text-stone-800">心理工作全景</h1><p class="mt-1 text-xs text-stone-400">国家三级心理危机预警 · 实时在册与历史累计双流统计</p></div><button type="button" class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-emerald-700" @click="isReportExportOpen = true"><span class="text-base">📊</span><span>导出心理健康周/月报</span></button></div></header>
     <div class="min-h-0 flex-1 overflow-y-auto bg-stone-50/70 p-6"><div class="mx-auto max-w-6xl space-y-6">
       <div class="grid gap-4 md:grid-cols-3">
         <article class="rounded-2xl border border-teal-100 bg-white p-5 shadow-sm"><div class="flex items-center justify-between"><span class="flex size-10 items-center justify-center rounded-xl bg-teal-50 text-teal-700"><ClipboardList :size="20" /></span><span class="text-xs text-stone-400">本学期</span></div><p class="mt-5 text-3xl font-semibold tabular-nums text-stone-800">{{ formatNumber(overview.consultations.length) }}<span class="ml-1 text-sm font-medium text-stone-500">次</span></p><p class="mt-1 text-sm text-stone-500">本学期咨询总人次</p><p class="mt-3 text-xs text-stone-400">初访 {{ overview.firstVisitCount }} 人 <span class="mx-1">|</span> 复访 {{ overview.followUpCount }} 人次</p></article>
