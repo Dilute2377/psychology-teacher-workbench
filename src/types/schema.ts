@@ -5,6 +5,7 @@
 
 // 1. 风险预警等级
 export type RiskLevel = 'normal' | 'attention' | 'warning' | 'crisis'
+export type StudentWarningLevel = 'red' | 'orange' | 'yellow' | 'none' | 'other'
 export type StudentStatus = 'active' | 'transferred' | 'suspended' | 'graduated'
 export type SoapField = 'subjective' | 'objective' | 'assessment' | 'plan'
 export type SoapTemplates = Record<SoapField, string>
@@ -43,10 +44,27 @@ export interface Student {
   dormNumber?: string // 宿舍号 (预留扩展)
   emergencyContact: { name: string; relation: string; phone: string }
   riskLevel: RiskLevel // 当前预警等级
+  /** 面向迎检台账的标准预警等级；旧版 riskLevel 仍保留用于兼容。 */
+  warningLevel?: StudentWarningLevel
+  /** 是否纳入个案辅导学生汇总。 */
+  isIndividualCase?: boolean
+  /** 医疗就诊单、会谈纪要等本地附件。 */
+  medicalAttachments?: MedicalAttachment[]
   tags: string[] // 快捷标签 (如 "单亲", "学业焦虑", "人际敏感")
   customFields?: Record<string, any> // 预留自定义扩展字段
   createdAt: string
   updatedAt: string
+  /** 仅用于本地压测数据清理，不代表业务标签。 */
+  isMock?: boolean
+}
+
+export interface MedicalAttachment {
+  id: string
+  name: string
+  type: 'pdf' | 'image'
+  url: string
+  date: string
+  note: string
 }
 
 // 4. 时间轴统一事件接口 (用于360全景视图)
@@ -89,6 +107,7 @@ export interface ConsultationRecord {
   riskLevelAtTime?: RiskLevel
   createdAt: string
   updatedAt: string
+  isMock?: boolean
 }
 
 // 6. 心理普查数据批次与明细
@@ -101,6 +120,7 @@ export interface CensusBatch {
   totalCount: number // 普查人数
   flaggedCount: number // 预警人数
   createdAt: string
+  isMock?: boolean
 }
 
 export interface CensusResult {
@@ -113,6 +133,7 @@ export interface CensusResult {
   isFlagged: boolean // 是否超标预警
   flaggedReasons: string[] // 触发预警因素
   createdAt: string
+  isMock?: boolean
 }
 
 // 7. 团体辅导记录
@@ -174,6 +195,7 @@ export interface WorkTrail {
   content: string
   attachments: CommunicationAttachment[]
   createdAt: string
+  isMock?: boolean
 }
 
 // 8. 上课与教学记录
@@ -278,6 +300,11 @@ export interface SystemConfig {
   themeMode: 'light' | 'dark' | 'warm'
   autoBackupIntervalDays: number // 本地备份提醒间隔
   lastBackupDate?: string
+  autoBackupEnabled?: boolean
+  lastAutoBackupTime?: string
+  autoBackupFolderPath?: string
+  /** 本机自动备份使用的随机密钥，仅保存在当前 IndexedDB。 */
+  autoBackupSecret?: string
   customCategories: string[] // 自定义咨询分类列表
   /** 老师维护的 SOAP 四段录入框架。 */
   soapTemplates?: SoapTemplates

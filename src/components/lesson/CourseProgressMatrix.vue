@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Archive, CheckCircle2, Eye, Plus, X } from '@lucide/vue'
+import { Archive, CheckCircle2, Eye, Plus, Trash2, X } from '@lucide/vue'
 import { useTeachingStore } from '../../stores/useTeachingStore'
 import type { LessonPlan, TeachingProgressUnit, WeeklySchedule } from '../../types/schema'
 
@@ -24,6 +24,7 @@ function dropPlan(event: DragEvent) { const planId = event.dataTransfer?.getData
 async function archive(unit: TeachingProgressUnit) { if (!window.confirm('归档该进度单元？')) return; await teachingStore.archiveProgressUnit(unit.id) }
 async function removeGrade(unit: TeachingProgressUnit, grade: string) { if (!window.confirm(`从当前进度单元移除“${grade}”？`)) return; await teachingStore.removeGradeFromProgressUnit(unit.id, grade) }
 async function restore(unit: TeachingProgressUnit) { await teachingStore.restoreProgressUnit(unit.id) }
+async function deleteUnit(unit: TeachingProgressUnit) { if (!window.confirm('删除该课程进度单元？教案库中的教案不会被删除。')) return; await teachingStore.deleteProgressUnit(unit.id) }
 async function toggleCompletion(plan: LessonPlan, grade: string, className: string) { await teachingStore.toggleCourseCompletion(plan.id, grade, className) }
 </script>
 
@@ -43,10 +44,12 @@ async function toggleCompletion(plan: LessonPlan, grade: string, className: stri
           <h3 class="min-w-40 flex-1 font-semibold text-slate-800">{{ item.plan.topicTitle }}</h3>
           <div class="flex flex-wrap items-center gap-1.5">
             <span v-for="grade in shownTags(item.unit)" :key="grade" class="inline-flex items-center rounded-full border py-0.5 pl-2 text-[11px]" :class="expandedGrades(item.unit).includes(grade) ? 'border-emerald-300 bg-emerald-100 font-semibold text-emerald-800' : 'border-slate-200 bg-slate-100 text-slate-600'"><button type="button" @click="toggleGrade(item.unit, grade)">{{ grade }}</button><button type="button" class="ml-1 rounded-full p-0.5 hover:bg-white hover:text-rose-600" :class="expandedGrades(item.unit).includes(grade) ? 'text-emerald-600' : 'text-slate-400'" :aria-label="`移除 ${grade}`" @click.stop="removeGrade(item.unit, grade)"><X :size="12" /></button></span>
+            <button type="button" class="inline-flex items-center gap-0.5 rounded-full border border-dashed border-emerald-300 px-2 py-0.5 text-[11px] text-emerald-700 hover:bg-emerald-50" @click.stop="emit('requestUnit', item.unit.lessonPlanId)"><Plus :size="11" />新增年级</button>
           </div>
           <div class="flex min-w-40 items-center gap-2"><div class="h-1.5 min-w-16 flex-1 overflow-hidden rounded-full bg-slate-100"><div class="h-full bg-emerald-500" :style="{ width: `${progressPercent(item.unit)}%` }" /></div><span class="whitespace-nowrap text-xs text-slate-500">已上 {{ completedCount(item.unit) }}/{{ count(item.unit) }} 班 ({{ progressPercent(item.unit) }}%)</span></div>
           <button type="button" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-800" @click.stop="emit('open', item.plan, null)"><Eye :size="14" />教案速览</button>
           <button type="button" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-amber-800" @click.stop="archive(item.unit)"><Archive :size="14" />归档/隐藏</button>
+          <button type="button" class="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-rose-500 hover:bg-rose-50" @click.stop="deleteUnit(item.unit)"><Trash2 :size="14" />删除</button>
         </header>
         <div v-if="expandedGrades(item.unit).length" class="overflow-x-auto border-t border-slate-100 pb-2 pt-3">
           <div class="flex min-w-max flex-nowrap gap-3 px-4">
@@ -55,6 +58,6 @@ async function toggleCompletion(plan: LessonPlan, grade: string, className: stri
         </div>
       </article>
     </div>
-    <details v-if="archivedUnits.length" class="mt-5 rounded-xl border border-slate-200 bg-white"><summary class="cursor-pointer px-4 py-3 text-sm font-medium text-slate-600">已归档课程（{{ archivedUnits.length }}）</summary><div class="border-t border-slate-100 p-3"><div v-for="item in archivedUnits" :key="item.unit.id" class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-2 last:border-0"><span class="text-sm text-slate-700">{{ item.plan.topicTitle }} · {{ item.unit.targetGrades.join('、') }}</span><button type="button" class="rounded-lg border border-teal-200 px-2.5 py-1 text-xs font-medium text-teal-800 hover:bg-teal-50" @click="restore(item.unit)">恢复到大盘</button></div></div></details>
+    <details v-if="archivedUnits.length" class="mt-5 rounded-xl border border-slate-200 bg-white"><summary class="cursor-pointer px-4 py-3 text-sm font-medium text-slate-600">已归档课程（{{ archivedUnits.length }}）</summary><div class="border-t border-slate-100 p-3"><div v-for="item in archivedUnits" :key="item.unit.id" class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 py-2 last:border-0"><span class="text-sm text-slate-700">{{ item.plan.topicTitle }} · {{ item.unit.targetGrades.join('、') }}</span><div class="flex items-center gap-2"><button type="button" class="rounded-lg border border-teal-200 px-2.5 py-1 text-xs font-medium text-teal-800 hover:bg-teal-50" @click="restore(item.unit)">恢复到大盘</button><button type="button" class="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50" @click="deleteUnit(item.unit)"><Trash2 :size="13" />删除</button></div></div></div></details>
   </section>
 </template>

@@ -4,7 +4,7 @@ import { db } from '../db'
 import type { SystemConfigRecord } from '../types/schema'
 
 export const defaultConsultationCategories = ['学业压力', '人际交往', '亲子关系', '情绪困扰', '自我认知', '适应问题', '危机干预']
-const fallback = (): SystemConfigRecord => ({ id: 'system', currentTermId: '', themeMode: 'warm', autoBackupIntervalDays: 14, customCategories: [], consultationCategories: [...defaultConsultationCategories] })
+const fallback = (): SystemConfigRecord => ({ id: 'system', currentTermId: '', themeMode: 'warm', autoBackupIntervalDays: 1, customCategories: [], consultationCategories: [...defaultConsultationCategories] })
 
 export const useCategoryStore = defineStore('category', () => {
   const categories = ref<string[]>([...defaultConsultationCategories])

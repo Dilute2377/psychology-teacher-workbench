@@ -1,4 +1,5 @@
 import { db } from '../db'
+import { decryptData, encryptData } from './cryptoService'
 
 export type BackupTables = Record<string, unknown[]>
 export interface BackupPayload {
@@ -13,6 +14,12 @@ export interface BackupPayload {
     categories: unknown[]
   }
   localStorage: Record<string, string | null>
+}
+
+export interface EncryptedBackupFile {
+  fileName: string
+  fileContent: string
+  exportAt: string
 }
 
 export type BackupSummary = {
@@ -36,9 +43,18 @@ function countAttachments(value: unknown): number {
   return direct + Object.entries(record).filter(([key]) => key !== 'attachments').reduce((total, [, item]) => total + countAttachments(item), 0)
 }
 
+function safeTableRows(name: string, rows: unknown[]) {
+  if (name !== 'settings') return rows
+  return rows.map((row) => {
+    if (!row || typeof row !== 'object') return row
+    const { autoBackupSecret: _autoBackupSecret, ...safe } = row as Record<string, unknown>
+    return safe
+  })
+}
+
 export async function createBackup(): Promise<BackupPayload> {
   const tables: BackupTables = {}
-  await Promise.all(db.tables.map(async (table) => { tables[table.name] = await table.toArray() }))
+  await Promise.all(db.tables.map(async (table) => { tables[table.name] = safeTableRows(table.name, await table.toArray()) }))
   const config = await db.settings.get('system')
   return {
     version: '2.0.0',
@@ -55,18 +71,46 @@ export async function createBackup(): Promise<BackupPayload> {
   }
 }
 
-export function stringifyBackup(payload: BackupPayload) { return JSON.stringify(payload, null, 2) }
+export function stringifyBackup(payload: BackupPayload) { return JSON.stringify(payload) }
 
-export function downloadBackup(payload: BackupPayload) {
-  const stamp = payload.exportAt.replace(/[- :]/g, '').slice(0, 12)
-  const url = URL.createObjectURL(new Blob([stringifyBackup(payload)], { type: 'application/json;charset=utf-8' }))
+export async function createEncryptedBackup(password: string, recoveryPassword?: string): Promise<EncryptedBackupFile> {
+  const payload = await createBackup()
+  const fileContent = await encryptData(stringifyBackup(payload), password, recoveryPassword)
+  const stamp = payload.exportAt.replace(/[- :]/g, '').slice(0, 14)
+  return { fileName: `心理老师工作台全量备份_${stamp}.mindbag`, fileContent, exportAt: payload.exportAt }
+}
+
+export function downloadEncryptedBackup(file: EncryptedBackupFile) {
+  const url = URL.createObjectURL(new Blob([file.fileContent], { type: 'application/octet-stream' }))
   const anchor = document.createElement('a')
   anchor.href = url
-  anchor.download = `心理老师工作台全量备份_${stamp}.mindbag`
+  anchor.download = file.fileName
   document.body.append(anchor)
   anchor.click()
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  return { mode: 'download' as const }
+}
+
+export async function saveEncryptedBackup(file: EncryptedBackupFile, folderPath?: string) {
+  if (folderPath && window.electronAPI) {
+    const result = await window.electronAPI.saveBackupFile({ folderPath, fileName: file.fileName, fileContent: file.fileContent })
+    return { mode: 'electron' as const, path: result.path }
+  }
+  return downloadEncryptedBackup(file)
+}
+
+export async function selectBackupFolder() {
+  if (!window.electronAPI) return { canceled: false, folderPath: '' }
+  return window.electronAPI.selectBackupFolder()
+}
+
+export async function decryptBackupFile(fileContent: string, password: string) {
+  const plaintext = await decryptData(fileContent, password)
+  let parsed: unknown
+  try { parsed = JSON.parse(plaintext) } catch { throw new Error('解密成功，但备份内容格式无效。') }
+  validateBackup(parsed)
+  return parsed
 }
 
 export function validateBackup(value: unknown): asserts value is BackupPayload {
@@ -75,6 +119,7 @@ export function validateBackup(value: unknown): asserts value is BackupPayload {
   if (!coreTables.every((name) => Array.isArray(payload.tables?.[name]))) throw new Error('备份文件格式非法或已损坏！')
 }
 
+/** 兼容上一版本未加密备份的读取入口，新的设置页默认只使用加密备份。 */
 export async function readBackup(file: File): Promise<BackupPayload> {
   let parsed: unknown
   try { parsed = JSON.parse(await file.text()) } catch { throw new Error('备份文件格式非法或已损坏！') }
@@ -90,30 +135,5 @@ export function summarizeBackup(payload: BackupPayload): BackupSummary {
     workTrails: payload.tables.workTrails?.length ?? 0,
     attachments: countAttachments(payload.tables.workTrails ?? []) + countAttachments(payload.tables.teachingMaterials ?? []),
     tableCount: Object.keys(payload.tables).length,
-  }
-}
-
-export async function restoreBackup(payload: BackupPayload, mode: 'replace' | 'merge') {
-  validateBackup(payload)
-  const knownTableNames = new Set(db.tables.map((table) => table.name))
-  await db.transaction('rw', db.tables, async () => {
-    if (mode === 'replace') await Promise.all(db.tables.map((table) => table.clear()))
-    for (const [name, records] of Object.entries(payload.tables)) {
-      if (knownTableNames.has(name) && Array.isArray(records) && records.length) await db.table(name).bulkPut(records as never[])
-    }
-    if (!Array.isArray(payload.tables.settings)) {
-      const current = await db.settings.get('system')
-      await db.settings.put({
-        ...(current ?? { id: 'system', currentTermId: '', themeMode: 'warm', autoBackupIntervalDays: 14, customCategories: [] }),
-        schoolProfile: payload.settings.schoolConfig as never,
-        teachingProfile: { ...(current?.teachingProfile ?? {}), periods: payload.settings.teachingPeriods } as never,
-        feishuConfig: payload.settings.feishuConfig as never,
-        consultationCategories: payload.settings.categories as string[],
-      })
-    }
-  })
-  if (payload.localStorage?.hasSeenLaunchNotice !== undefined) {
-    const value = payload.localStorage.hasSeenLaunchNotice
-    if (value === null) localStorage.removeItem('hasSeenLaunchNotice'); else localStorage.setItem('hasSeenLaunchNotice', value)
   }
 }

@@ -10,9 +10,12 @@ const drawerOpen = ref(false)
 const editingId = ref<string | null>(null)
 const message = ref('')
 
+const archivedPlanIds = computed(() => new Set(teachingStore.progressUnits.filter((unit) => Boolean(unit.archivedAt)).map((unit) => unit.lessonPlanId)))
 const plans = computed(() => {
   const term = keyword.value.trim()
-  return teachingStore.lessonPlans.filter((plan) => !term || [plan.topicTitle, plan.description, plan.objectives, plan.procedureText].join(' ').includes(term))
+  return teachingStore.lessonPlans
+    .filter((plan) => !term || [plan.topicTitle, plan.description, plan.objectives, plan.procedureText].join(' ').includes(term))
+    .sort((a, b) => Number(archivedPlanIds.value.has(a.id)) - Number(archivedPlanIds.value.has(b.id)) || b.updatedAt.localeCompare(a.updatedAt))
 })
 
 function add() { editingId.value = null; drawerOpen.value = true }
@@ -52,7 +55,7 @@ onMounted(() => void teachingStore.fetchTeachingData())
         <div class="flex items-start gap-1">
           <GripVertical :size="15" class="mt-0.5 shrink-0 text-stone-300" />
           <div class="min-w-0 flex-1">
-            <p class="text-[11px] font-medium text-teal-700">📝 全校通用教案</p>
+            <p class="flex items-center gap-1 text-[11px] font-medium text-teal-700">📝 全校通用教案 <span v-if="archivedPlanIds.has(plan.id)" class="rounded-full bg-slate-100 px-1.5 py-0.5 font-normal text-slate-500">已归档</span></p>
             <h3 class="mt-1 line-clamp-2 text-sm font-semibold text-stone-800">{{ plan.topicTitle }}</h3>
             <p class="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{{ plan.description || plan.objectives || '尚未填写课程简介。' }}</p>
           </div>

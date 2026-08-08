@@ -67,12 +67,16 @@ export const useTeachingStore = defineStore('teaching', () => {
   }
   async function archiveProgressUnit(id: string) { await db.teachingProgressUnits.update(id, { archivedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }); await fetchTeachingData() }
   async function restoreProgressUnit(id: string) { await db.teachingProgressUnits.update(id, { archivedAt: undefined, updatedAt: new Date().toISOString() }); await fetchTeachingData() }
+  async function deleteProgressUnit(id: string) {
+    await db.teachingProgressUnits.delete(id)
+    await fetchTeachingData()
+  }
   async function removeGradeFromProgressUnit(id: string, grade: string) {
     const unit = await db.teachingProgressUnits.get(id)
     if (!unit) return
     const targetGrades = unit.targetGrades.filter((item) => item !== grade)
-    if (!targetGrades.length) await db.teachingProgressUnits.update(id, { archivedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
-    else await db.teachingProgressUnits.update(id, { targetGrades, updatedAt: new Date().toISOString() })
+    // 移除最后一个年级只清空授课范围，不改变归档状态。归档必须由老师明确点击“归档/隐藏”完成。
+    await db.teachingProgressUnits.update(id, { targetGrades, updatedAt: new Date().toISOString() })
     await fetchTeachingData()
   }
   async function upsertWeeklySchedule(draft: Omit<WeeklySchedule, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) { const now = new Date().toISOString(); const record: WeeklySchedule = { ...draft, id: draft.id ?? crypto.randomUUID(), createdAt: now, updatedAt: now }; await db.weeklySchedules.put(record); await fetchTeachingData(); return record }
@@ -175,5 +179,5 @@ export const useTeachingStore = defineStore('teaching', () => {
     await fetchTeachingData(); workbench.notifyStudentsChanged(); return record
   }
   function applicationCount(planId: string) { return new Set([...weeklySchedules.value.filter((item) => item.lessonPlanId === planId).map((item) => `${item.grade}-${item.className}`), ...courseProgress.value.filter((item) => item.lessonPlanId === planId).map((item) => `${item.grade}-${item.className}`)]).size }
-  return { lessonPlans, weeklySchedules, courseProgress, progressUnits, lessonRecords, teachingMaterials, pendingMaterialId, pendingPlanReference, progressUnitRequestId, selectedPlanId, currentTermId, planById, scheduleById, weekdayLabel, fetchTeachingData, addLessonPlan, updateLessonPlan, deleteLessonPlan, createProgressUnit, archiveProgressUnit, restoreProgressUnit, removeGradeFromProgressUnit, upsertWeeklySchedule, assignPlan, clearSchedulePlan, deleteWeeklySchedule, completeSchedule, undoCompleteSchedule, toggleCourseCompletion, addTeachingMaterial, updateTeachingMaterial, deleteTeachingMaterial, queueMaterial, clearQueuedMaterial, requestProgressUnit, consumeProgressUnitRequest, prepareMaterialReference, consumeMaterialReference, attachMaterialToSchedule, schedulePlanAtSlot, createFixedScheduleAtSlot, saveLessonLog, applicationCount }
+  return { lessonPlans, weeklySchedules, courseProgress, progressUnits, lessonRecords, teachingMaterials, pendingMaterialId, pendingPlanReference, progressUnitRequestId, selectedPlanId, currentTermId, planById, scheduleById, weekdayLabel, fetchTeachingData, addLessonPlan, updateLessonPlan, deleteLessonPlan, createProgressUnit, archiveProgressUnit, restoreProgressUnit, deleteProgressUnit, removeGradeFromProgressUnit, upsertWeeklySchedule, assignPlan, clearSchedulePlan, deleteWeeklySchedule, completeSchedule, undoCompleteSchedule, toggleCourseCompletion, addTeachingMaterial, updateTeachingMaterial, deleteTeachingMaterial, queueMaterial, clearQueuedMaterial, requestProgressUnit, consumeProgressUnitRequest, prepareMaterialReference, consumeMaterialReference, attachMaterialToSchedule, schedulePlanAtSlot, createFixedScheduleAtSlot, saveLessonLog, applicationCount }
 })

@@ -3,7 +3,10 @@ import { computed, onMounted, ref, watch } from "vue";
 import {
   ArchiveRestore,
   BellRing,
+  DatabaseZap,
   Download,
+  Dices,
+  FolderOpen,
   GraduationCap,
   Info,
   LockKeyhole,
@@ -26,6 +29,10 @@ import { useSchoolConfigStore } from "../../stores/useSchoolConfigStore";
 import { useSettingsStore } from "../../stores/useSettingsStore";
 import { feishuCards, sendFeishuCard } from "../../services/feishuService";
 import { STAGE_LABELS, type SchoolStage } from "../../constants/grades";
+import { clearMockDataOnly, factoryReset } from "../../services/resetService";
+import { selectBackupFolder } from "../../services/backupService";
+import { generateMockData } from "../../utils/mockDataGenerator";
+import FactoryResetConfirmModal from "../../components/system/FactoryResetConfirmModal.vue";
 
 type Tab =
   | "school"
@@ -53,6 +60,9 @@ const feishuTesting = ref(false);
 const showTerms = ref(false);
 const showPromotion = ref(false);
 const backupAction = ref<"export" | "restore" | null>(null);
+const developerMessage = ref("");
+const mockBusy = ref(false);
+const resetVisible = ref(false);
 const usages = ref<Record<string, TermUsage>>({});
 const tabs = [
   { id: "school" as const, label: "学校与教学配置", icon: Settings2 },
@@ -145,6 +155,24 @@ async function testFeishu() {
     feishuTesting.value = false;
   }
 }
+async function generateMockStudents() {
+  mockBusy.value = true; developerMessage.value = ""
+  try { const result = await generateMockData(500); localStorage.setItem("mockDataGeneratedAt", new Date().toISOString()); developerMessage.value = `已成功注入 ${result.students} 名虚拟学生及关联记录！`; window.setTimeout(() => window.location.reload(), 900) } catch (error) { developerMessage.value = error instanceof Error ? error.message : "模拟数据生成失败。" } finally { mockBusy.value = false }
+}
+async function clearMockStudents() {
+  mockBusy.value = true; developerMessage.value = ""
+  try { const removed = await clearMockDataOnly(); const count = Object.values(removed).reduce((sum, value) => sum + value, 0); developerMessage.value = count ? `已清理 ${count} 条模拟数据，用户数据和系统配置已保留。` : "当前没有可清理的模拟数据。"; window.setTimeout(() => window.location.reload(), 700) } catch (error) { developerMessage.value = error instanceof Error ? error.message : "模拟数据清理失败。" } finally { mockBusy.value = false }
+}
+async function confirmFactoryReset() {
+  mockBusy.value = true; developerMessage.value = ""
+  try { await factoryReset(); resetVisible.value = false; developerMessage.value = "已恢复出厂设置，应用即将重新加载。"; window.setTimeout(() => window.location.reload(), 700) } catch (error) { developerMessage.value = error instanceof Error ? error.message : "恢复出厂失败。" } finally { mockBusy.value = false }
+}
+async function chooseAutoBackupFolder() {
+  const result = await selectBackupFolder()
+  if (result.canceled || !result.folderPath) return
+  await settingsStore.saveAutoBackupSettings({ folderPath: result.folderPath })
+}
+async function saveAutoBackup() { await settingsStore.saveAutoBackupSettings({ enabled: settingsStore.autoBackupEnabled, intervalDays: settingsStore.autoBackupIntervalDays, folderPath: settingsStore.autoBackupFolderPath }); developerMessage.value = "自动备份配置已保存。" }
 watch(() => schoolConfig.teachingProfile.morningPeriods, syncPeriods);
 watch(() => schoolConfig.teachingProfile.afternoonPeriods, syncPeriods);
 onMounted(async () => {
@@ -539,16 +567,11 @@ onMounted(async () => {
         v-else-if="activeTab === 'backup'"
         class="mt-5 max-w-3xl rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
       >
-        <h2 class="font-semibold text-stone-800">全量数据备份与恢复</h2>
+        <h2 class="font-semibold text-stone-800">全量备份与恢复</h2>
         <div class="mt-5 grid gap-4 sm:grid-cols-2">
           <article class="rounded-xl border border-teal-100 bg-teal-50/40 p-4">
             <Download :size="20" class="text-teal-700" />
-            <h3 class="mt-3 text-sm font-semibold text-stone-800">
-              导出全量本地备份
-            </h3>
-            <p class="mt-1 text-xs leading-5 text-stone-500">
-              导出所有业务表、本机配置及附件存证。
-            </p>
+            <h3 class="mt-3 text-sm font-semibold text-stone-800">导出全量本地备份</h3>
             <button
               type="button"
               class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800"
@@ -564,9 +587,6 @@ onMounted(async () => {
             <h3 class="mt-3 text-sm font-semibold text-stone-800">
               恢复备份数据
             </h3>
-            <p class="mt-1 text-xs leading-5 text-stone-500">
-              可先预览摘要，再选择覆盖或合并恢复。
-            </p>
             <button
               type="button"
               class="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100"
@@ -576,6 +596,18 @@ onMounted(async () => {
             </button>
           </article>
         </div>
+        <article class="mt-5 rounded-xl border border-sky-200 bg-sky-50/50 p-4">
+          <div class="flex items-center gap-2"><FolderOpen :size="19" class="text-sky-700" /><h3 class="text-sm font-semibold text-slate-800">自动静默加密备份</h3></div>
+          <p class="mt-1 text-xs text-slate-500">Electron 版静默落盘；Web/开发版下载文件。</p>
+          <div class="mt-4 grid gap-3 sm:grid-cols-[1fr_140px]"><label class="flex items-center gap-2 text-sm font-medium text-slate-700"><input v-model="settingsStore.autoBackupEnabled" type="checkbox" class="accent-emerald-600" />开启自动备份</label><label class="text-sm font-medium text-slate-700">间隔天数<input v-model.number="settingsStore.autoBackupIntervalDays" type="number" min="1" max="30" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2" /></label></div>
+          <div class="mt-3 flex flex-wrap items-center gap-2"><input :value="settingsStore.autoBackupFolderPath || '尚未选择目录（Electron 版请先选择）'" readonly class="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500" /><button type="button" class="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-semibold text-sky-800 hover:bg-sky-100" @click="chooseAutoBackupFolder"><FolderOpen :size="14" />选择目录</button><button type="button" class="rounded-lg bg-sky-700 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-800" @click="saveAutoBackup">保存</button></div>
+          <p class="mt-2 text-[11px] text-slate-400">最近自动备份：{{ settingsStore.lastAutoBackupTime || '尚未执行' }}</p>
+        </article>
+        <article class="mt-5 rounded-xl border border-slate-300 bg-slate-900 p-5 text-white">
+          <div class="flex items-center gap-2"><DatabaseZap :size="19" class="text-sky-300" /><div><h3 class="text-sm font-semibold">高级开发者与数据重置区</h3><p class="mt-1 text-xs text-slate-300">本地压测与恢复出厂。</p></div></div>
+          <p v-if="developerMessage" class="mt-4 rounded-lg bg-white/10 px-3 py-2 text-xs text-slate-100">{{ developerMessage }}</p>
+          <div class="mt-4 flex flex-wrap gap-2"><button type="button" :disabled="mockBusy" class="inline-flex items-center gap-1.5 rounded-lg bg-sky-500 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-400 disabled:opacity-50" @click="generateMockStudents"><Dices :size="15" />{{ mockBusy ? '处理中…' : '一键生成 500 名测试学生数据' }}</button><button type="button" :disabled="mockBusy" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-900/40 disabled:opacity-50" @click="clearMockStudents"><Trash2 :size="15" />仅清理模拟测试数据</button><button type="button" :disabled="mockBusy" class="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-900/50 disabled:opacity-50" @click="resetVisible = true"><DatabaseZap :size="15" />恢复出厂设置</button></div>
+        </article>
       </section>
       <section
         v-else-if="activeTab === 'feishu'"
@@ -698,6 +730,9 @@ onMounted(async () => {
         <p class="mt-2 text-sm leading-6 text-stone-500">
           本地免费公益工具，请通过官方声明核验来源。
         </p>
+        <p class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
+          本软件为教学管理与工作留痕辅助工具，心理评估与危机干预请依据专业临床标准执行。数据默认保存在本机，备份文件使用 AES-256-GCM 加密，请妥善保管解密主密码并定期导出备份。
+        </p>
         <button
           type="button"
           class="mt-5 inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
@@ -722,8 +757,9 @@ onMounted(async () => {
     /><BackupRestoreModal
       v-if="backupAction"
       :initial-action="backupAction"
+      :folder-path="settingsStore.autoBackupFolderPath"
       @close="backupAction = null"
       @restored="backupAction = null"
-    />
+    /><FactoryResetConfirmModal v-if="resetVisible" :busy="mockBusy" @cancel="resetVisible = false" @confirm="confirmFactoryReset" />
   </div>
 </template>

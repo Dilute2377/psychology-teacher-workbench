@@ -29,6 +29,13 @@ export const useCensusStore = defineStore('census', () => {
   async function selectBatch(batchId: string) { selectedBatchId.value = batchId; await fetchResults(batchId) }
   async function importBatch(payload: CensusImportPayload) {
     if (!payload.termId || !payload.title.trim() || !payload.scaleName.trim() || !payload.date || !payload.rows.length) throw new Error('请完成批次名称、量表、日期和有效数据。')
+    const incomingNumbers = new Set<string>()
+    for (const row of payload.rows) {
+      const studentNo = row.studentNo.trim()
+      if (!studentNo) throw new Error('普查数据中存在空白学号，无法导入。')
+      if (incomingNumbers.has(studentNo)) throw new Error(`学号“${studentNo}”在本批次重复；同名学生可以保留，但同一学号只能出现一次。`)
+      incomingNumbers.add(studentNo)
+    }
     const now = new Date().toISOString()
     const existingStudents = new Map((await db.students.toArray()).map((student) => [student.studentNo, student]))
     const year = Number(termStore.currentTerm?.startDate.slice(0, 4) ?? new Date().getFullYear())

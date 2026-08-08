@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { CalendarPlus, Trash2, X } from '@lucide/vue'
 import { useTermStore, type TermUsage } from '../../stores/useTermStore'
+import { focusModalField } from '../../utils/focusModalField'
 
 const emit = defineEmits<{ close: [] }>()
 const termStore = useTermStore()
@@ -44,7 +45,7 @@ async function removeTerm(id: string) {
   await termStore.deleteTerm(id)
   await refresh()
 }
-onMounted(async () => { await refresh(); resetForm() })
+onMounted(async () => { await refresh(); resetForm(); await focusModalField() })
 </script>
 
 <template>

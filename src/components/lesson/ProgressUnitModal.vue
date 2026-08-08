@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { X } from '@lucide/vue'
 import { useTeachingStore } from '../../stores/useTeachingStore'
+import { focusModalField } from '../../utils/focusModalField'
 
 const props = defineProps<{ initialPlanId?: string; grades: string[] }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
@@ -11,6 +12,7 @@ const selectedGrades = ref<string[]>([])
 const saving = ref(false)
 const errorMessage = ref('')
 const selectedPlan = computed(() => teachingStore.planById.get(planId.value))
+void focusModalField()
 watch(() => props.initialPlanId, (value) => { planId.value = value ?? '' })
 function toggleGrade(grade: string) { selectedGrades.value = selectedGrades.value.includes(grade) ? selectedGrades.value.filter((item) => item !== grade) : [...selectedGrades.value, grade] }
 async function save() {

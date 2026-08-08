@@ -5,6 +5,7 @@ import { getConsultationCategoryLabel, matchesConsultationCategory, useConsultat
 import { useCategoryStore } from '../../stores/useCategoryStore'
 import { useTermStore } from '../../stores/useTermStore'
 import { useWorkbenchStore } from '../../stores/workbench'
+import { useSearchStore } from '../../stores/useSearchStore'
 import { studentService } from '../../services/studentService'
 import { getStudentGrade } from '../../utils/academic'
 import type { Student } from '../../types/schema'
@@ -13,8 +14,9 @@ const consultationStore = useConsultationStore()
 const categoryStore = useCategoryStore()
 const termStore = useTermStore()
 const workbench = useWorkbenchStore()
+const searchStore = useSearchStore()
 const students = ref<Student[]>([])
-const keyword = ref('')
+const keyword = computed({ get: () => searchStore.searchKeyword, set: (value: string) => searchStore.setSearchKeyword(value) })
 const category = ref('')
 const visitType = ref('')
 const visitLabels: Record<string, string> = { active: '主动来访', referral: '教师转介', census_followup: '普查约访' }

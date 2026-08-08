@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, type Component } from 'vue'
-import { ArchiveRestore, BookOpenCheck, ChartNoAxesCombined, ClipboardList, Gauge, GraduationCap, LockKeyhole, Search, Settings2, ShieldCheck, ShieldPlus, UsersRound } from '@lucide/vue'
+import { ref, type Component } from 'vue'
+import { BookOpenCheck, ChartNoAxesCombined, ClipboardList, Gauge, GraduationCap, Settings2, ShieldPlus, UsersRound } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 import { useWorkbenchStore } from '../stores/workbench'
 import StudentList from '../components/student/StudentList.vue'
@@ -10,7 +10,7 @@ import GroupList from '../components/group/GroupList.vue'
 import WorkTrailList from '../components/work-trail/WorkTrailList.vue'
 import LessonPlanLibrary from '../components/lesson/LessonPlanLibrary.vue'
 import DashboardAlertList from '../components/dashboard/DashboardAlertList.vue'
-import HeaderTermSelector from '../components/layout/HeaderTermSelector.vue'
+import AppHeader from '../components/layout/AppHeader.vue'
 import AcademicYearPromotionModal from '../components/system/AcademicYearPromotionModal.vue'
 import AppLockModal from '../components/system/AppLockModal.vue'
 import BackupRestoreModal from '../components/system/BackupRestoreModal.vue'
@@ -33,30 +33,12 @@ const navigation: NavigationItem[] = [
   { label: '教学记录', to: '/lessons', icon: BookOpenCheck },
   { label: '系统设置', to: '/settings', icon: Settings2 },
 ]
-const pageLabel = computed(() => navigation.find((item) => item.to === route.path)?.label ?? '工作台')
 const closeDialog = () => { activeDialog.value = null }
-onMounted(() => { void appLock.load() })
 </script>
 
 <template>
   <div class="flex h-screen w-screen flex-col overflow-hidden bg-slate-50 text-stone-800">
-    <header class="flex h-14 shrink-0 items-center gap-3 border-b border-stone-200 bg-white px-4 shadow-sm sm:px-6">
-      <div class="flex min-w-fit items-center gap-2 text-teal-800">
-        <div class="flex size-9 items-center justify-center rounded-xl bg-teal-700 text-white shadow-sm"><ShieldCheck :size="19" /></div>
-        <span class="hidden text-sm font-semibold sm:block">心理老师工作台</span>
-      </div>
-      <HeaderTermSelector />
-      <label class="mx-auto hidden w-full max-w-xl items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-400 focus-within:border-teal-400 focus-within:bg-white md:flex">
-        <Search :size="16" />
-        <input v-model="workbench.globalSearch" class="w-full bg-transparent outline-none placeholder:text-stone-400" placeholder="搜索学生、记录或关键词" />
-        <kbd class="rounded border border-stone-200 bg-white px-1.5 py-0.5 text-[10px] text-stone-400">Ctrl K</kbd>
-      </label>
-      <div class="ml-auto flex items-center gap-1.5">
-        <button class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-stone-600 hover:bg-stone-100" type="button" @click="appLock.lock()"><LockKeyhole :size="16" /><span class="hidden lg:inline">数据锁</span></button>
-        <button class="hidden rounded-lg px-2 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100 xl:inline" type="button" @click="isPromoting = true">一键升学</button>
-        <button class="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-2.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-800" type="button" @click="activeDialog = 'backup'"><ArchiveRestore :size="16" /><span class="hidden lg:inline">备份</span></button>
-      </div>
-    </header>
+    <AppHeader @backup="activeDialog = 'backup'" @promote="isPromoting = true" />
 
     <div class="flex flex-1 overflow-hidden">
       <aside class="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-stone-200 bg-white px-3 py-4">
@@ -71,15 +53,15 @@ onMounted(() => { void appLock.load() })
       <div class="flex min-w-0 flex-1 overflow-hidden">
         <template v-if="route.path !== '/settings'">
         <section v-if="route.path === '/'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><DashboardAlertList /></section>
-        <section v-else-if="route.path === '/students'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><StudentList /></section>
+        <section v-else-if="route.path === '/students' || route.path === '/students/key-students'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><StudentList /></section>
         <section v-else-if="route.path === '/consultations'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><ConsultationList /></section>
         <section v-else-if="route.path === '/census'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><CensusBatchList /></section>
         <section v-else-if="route.path === '/groups'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><GroupList /></section>
         <section v-else-if="route.path === '/work-trails'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><WorkTrailList /></section>
         <section v-else-if="route.path === '/lessons'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><LessonPlanLibrary /></section>
-        <section v-else class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><div class="shrink-0 border-b border-stone-100 px-5 py-5"><p class="text-xs font-medium tracking-wide text-teal-700">{{ pageLabel }}</p><h2 class="mt-1 text-lg font-semibold text-stone-800">列表与筛选区</h2></div><slot name="list"><div class="flex flex-1 items-center justify-center px-8 text-center"><p class="text-sm leading-6 text-stone-400">后续模块将在此嵌入搜索、筛选和可操作的业务列表。</p></div></slot></section>
+        <section v-else class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><div class="shrink-0 border-b border-stone-100 px-5 py-5"><p class="text-xs font-medium tracking-wide text-teal-700">工作台</p><h2 class="mt-1 text-lg font-semibold text-stone-800">列表与筛选区</h2></div><slot name="list"><div class="flex flex-1 items-center justify-center px-8 text-center"><p class="text-sm leading-6 text-stone-400">后续模块将在此嵌入搜索、筛选和可操作的业务列表。</p></div></slot></section>
         </template>
-        <main class="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-white"><slot name="workspace"><RouterView v-slot="{ Component }"><KeepAlive><component :is="Component" /></KeepAlive></RouterView></slot></main>
+        <main class="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-white"><slot name="workspace"><RouterView v-slot="{ Component }"><component :is="Component" /></RouterView></slot></main>
       </div>
     </div>
 

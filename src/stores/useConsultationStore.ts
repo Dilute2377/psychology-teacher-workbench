@@ -31,6 +31,15 @@ export const useConsultationStore = defineStore('consultation', () => {
   const workbench = useWorkbenchStore()
   const selectedConsultation = computed(() => consultations.value.find((record) => record.id === selectedConsultationId.value))
 
+  async function writeStudentRiskSnapshot(studentId: string, riskLevel: RiskLevel, updatedAt: string) {
+    const student = await db.students.get(studentId)
+    const customFields = student?.customFields ?? {}
+    const previous = Array.isArray(customFields.riskHistory) ? customFields.riskHistory : []
+    const last = previous[previous.length - 1]
+    const riskHistory = last?.level === riskLevel ? previous : [...previous, { level: riskLevel, at: updatedAt }]
+    await db.students.update(studentId, { riskLevel, warningLevel: riskLevel === 'crisis' ? 'red' : riskLevel === 'warning' ? 'orange' : riskLevel === 'attention' ? 'yellow' : 'none', isIndividualCase: true, customFields: { ...customFields, riskHistory }, updatedAt })
+  }
+
   async function fetchConsultations(filters: ConsultationFilters = {}) {
     const termId = filters.termId ?? termStore.currentTermId
     const records = await db.consultations.toArray()
@@ -44,7 +53,8 @@ export const useConsultationStore = defineStore('consultation', () => {
     const record: ConsultationRecord = { ...draft, id: crypto.randomUUID(), sessionIndex: draft.sessionIndex ?? existingCount + 1, riskLevelAtTime: riskLevel, createdAt: now, updatedAt: now }
     await db.transaction('rw', db.consultations, db.students, async () => {
       await db.consultations.add(record)
-      if (riskLevel) await db.students.update(record.studentId, { riskLevel, updatedAt: now })
+      if (riskLevel) await writeStudentRiskSnapshot(record.studentId, riskLevel, now)
+      else await db.students.update(record.studentId, { isIndividualCase: true, updatedAt: now })
     })
     await fetchConsultations()
     selectedConsultationId.value = record.id
@@ -55,9 +65,11 @@ export const useConsultationStore = defineStore('consultation', () => {
   async function updateConsultation(id: string, changes: Partial<ConsultationDraft>, riskLevel?: RiskLevel) {
     const updatedAt = new Date().toISOString()
     await db.transaction('rw', db.consultations, db.students, async () => {
-      await db.consultations.update(id, { ...changes, riskLevelAtTime: riskLevel, updatedAt })
+      const snapshot = riskLevel === undefined ? {} : { riskLevelAtTime: riskLevel }
+      await db.consultations.update(id, { ...changes, ...snapshot, updatedAt })
       const saved = await db.consultations.get(id)
-      if (saved && riskLevel) await db.students.update(saved.studentId, { riskLevel, updatedAt })
+      if (saved && riskLevel) await writeStudentRiskSnapshot(saved.studentId, riskLevel, updatedAt)
+      else if (saved) await db.students.update(saved.studentId, { isIndividualCase: true, updatedAt: updatedAt })
     })
     const record = await db.consultations.get(id)
     await fetchConsultations()
@@ -75,7 +87,8 @@ export const useConsultationStore = defineStore('consultation', () => {
 
   function openForm(id?: string) { editingConsultationId.value = id ?? null; isFormOpen.value = true }
   function closeForm() { isFormOpen.value = false; editingConsultationId.value = null }
-  function openDetail(id: string) { selectedConsultationId.value = id; isDetailOpen.value = true }
+  /** 咨询主视图已经有固定第三栏详情，列表点击只切换选中记录，不再打开重复抽屉。 */
+  function openDetail(id: string) { selectedConsultationId.value = id; isDetailOpen.value = false }
   function closeDetail() { isDetailOpen.value = false }
   return { consultations, selectedConsultationId, selectedConsultation, isFormOpen, editingConsultationId, isDetailOpen, fetchConsultations, addConsultation, updateConsultation, deleteConsultation, openForm, closeForm, openDetail, closeDetail }
 })
