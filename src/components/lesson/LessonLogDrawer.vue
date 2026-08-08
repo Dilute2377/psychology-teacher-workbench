@@ -9,17 +9,172 @@ import { getStudentGrade } from '../../utils/academic'
 import type { CourseProgress, LessonPlan, Student, WeeklySchedule } from '../../types/schema'
 import { focusModalField } from '../../utils/focusModalField'
 
-const props = defineProps<{ plan: LessonPlan | null; grade: string; className: string; schedule?: WeeklySchedule | null; progress?: CourseProgress | null }>(); const emit = defineEmits<{ close: []; changed: [] }>()
-const teachingStore = useTeachingStore(); const termStore = useTermStore(); const students = ref<Student[]>([]); const activeTab = ref<'preview' | 'log'>('preview'); const selectedPlanId = ref(props.plan?.id ?? ''); const studentSearch = ref(''); const saving = ref(false); const error = ref(''); const existingReflection = ref('')
+type ClassOption = { grade: string; className: string }
+
+const props = defineProps<{
+  plan: LessonPlan | null
+  grade: string
+  className: string
+  classOptions?: ClassOption[]
+  schedule?: WeeklySchedule | null
+  progress?: CourseProgress | null
+}>()
+const emit = defineEmits<{ close: []; changed: [] }>()
+
+const teachingStore = useTeachingStore()
+const termStore = useTermStore()
+const students = ref<Student[]>([])
+const activeTab = ref<'preview' | 'log'>('preview')
+const selectedPlanId = ref(props.plan?.id ?? '')
+const selectedClassKey = ref('')
+const studentSearch = ref('')
+const saving = ref(false)
+const error = ref('')
+const existingReflection = ref('')
 const form = reactive({ date: new Date().toISOString().slice(0, 10), reflection: '', notableStudents: [] as Array<{ studentId: string; studentName: string; note: string }> })
+
 const selectedPlan = computed(() => props.plan ?? teachingStore.planById.get(selectedPlanId.value) ?? null)
-const candidates = computed(() => students.value.filter((student) => student.status === 'active' && getStudentGrade(student, termStore.currentTerm) === props.grade && student.className === props.className && (!studentSearch.value.trim() || [student.name, student.studentNo].join(' ').includes(studentSearch.value.trim())) && !form.notableStudents.some((item) => item.studentId === student.id)))
+const isClassLocked = computed(() => Boolean(props.grade && props.className))
+
+function classKey(option: ClassOption) { return `${option.grade}::${option.className}` }
+
+const scopedClassOptions = computed<ClassOption[]>(() => {
+  const source = props.classOptions?.length ? props.classOptions : []
+  const options = [...source]
+  if (props.grade && props.className && !options.some((item) => item.grade === props.grade && item.className === props.className)) options.unshift({ grade: props.grade, className: props.className })
+  return [...new Map(options.map((item) => [classKey(item), item])).values()]
+})
+const selectedClass = computed(() => scopedClassOptions.value.find((item) => classKey(item) === selectedClassKey.value))
+
+function studentMatchesClass(student: Student, option: ClassOption) {
+  if (student.className !== option.className) return false
+  const derivedGrade = getStudentGrade(student, termStore.currentTerm)
+  // 兼容历史档案：当前学年可推导年级优先，但旧档案的 grade 仍可作为回退值。
+  return [derivedGrade, student.grade, student.gradeOverride].filter(Boolean).includes(option.grade)
+}
+
+function studentScope(student: Student) {
+  return scopedClassOptions.value.find((option) => studentMatchesClass(student, option))
+}
+
+const candidates = computed(() => {
+  const search = studentSearch.value.trim().toLocaleLowerCase()
+  return students.value.filter((student) => {
+    if (student.status !== 'active' || form.notableStudents.some((item) => item.studentId === student.id)) return false
+    const scope = studentScope(student)
+    if (!scope || (selectedClassKey.value && classKey(scope) !== selectedClassKey.value)) return false
+    if (!search) return true
+    return [student.name, student.studentNo].join(' ').toLocaleLowerCase().includes(search)
+  })
+})
+
+const selectedStudentScopes = computed(() => [...new Map(form.notableStudents.map((item) => students.value.find((student) => student.id === item.studentId)).filter((student): student is Student => Boolean(student)).map((student) => {
+  const scope = studentScope(student)
+  return scope ? [classKey(scope), scope] as const : null
+}).filter((item): item is readonly [string, ClassOption] => Boolean(item))).values()])
+
+const targetClass = computed<ClassOption | null>(() => {
+  if (isClassLocked.value) return { grade: props.grade, className: props.className }
+  if (selectedClass.value) return selectedClass.value
+  if (selectedStudentScopes.value.length === 1) return selectedStudentScopes.value[0]
+  if (scopedClassOptions.value.length === 1) return scopedClassOptions.value[0]
+  return null
+})
+
+const scopeLabel = computed(() => {
+  if (isClassLocked.value) return `${props.grade}${props.className}`
+  if (selectedClass.value) return `${selectedClass.value.grade}${selectedClass.value.className}`
+  return '关联年级/班级'
+})
+
+function resetEntryState() {
+  selectedPlanId.value = props.plan?.id ?? ''
+  selectedClassKey.value = isClassLocked.value ? classKey({ grade: props.grade, className: props.className }) : ''
+  studentSearch.value = ''
+  form.date = new Date().toISOString().slice(0, 10)
+  form.reflection = ''
+  form.notableStudents = []
+  existingReflection.value = ''
+  error.value = ''
+}
+
 function addStudent(student: Student) { form.notableStudents.push({ studentId: student.id, studentName: student.name, note: '' }) }
 function removeStudent(id: string) { form.notableStudents = form.notableStudents.filter((item) => item.studentId !== id) }
 async function bindPlan() { if (!props.schedule || !selectedPlanId.value) { error.value = '请选择要关联的教案。'; return }; await teachingStore.assignPlan(props.schedule.id, selectedPlanId.value); emit('changed'); error.value = '教案已关联到该课时。' }
-async function loadExisting() { if (!props.progress) return; const record = await db.lessonRecords.get(props.progress.lessonRecordId); if (!record) return; form.date = record.date; form.reflection = record.reflection; form.notableStudents = record.notableStudents.map((item) => ({ ...item })) ; existingReflection.value = record.reflection }
-async function saveLog() { if (!selectedPlan.value) { error.value = '请先关联或选择一份教案。'; return }; saving.value = true; error.value = ''; try { await teachingStore.saveLessonLog(selectedPlan.value, { grade: props.grade, className: props.className, date: form.date, reflection: form.reflection, notableStudents: form.notableStudents }, props.schedule?.id); emit('changed'); emit('close') } catch (reason) { error.value = reason instanceof Error ? reason.message : '保存结课登记失败。' } finally { saving.value = false } }
-onMounted(async () => { students.value = await studentService.list(); await loadExisting(); await focusModalField() }); watch(() => props.plan?.id, (id) => { selectedPlanId.value = id ?? '' })
+async function loadExisting() { if (!props.progress) return; const record = await db.lessonRecords.get(props.progress.lessonRecordId); if (!record) return; form.date = record.date; form.reflection = record.reflection; form.notableStudents = record.notableStudents.map((item) => ({ ...item })); existingReflection.value = record.reflection }
+async function saveLog() {
+  if (!selectedPlan.value) { error.value = '请先关联或选择一份教案。'; return }
+  if (!targetClass.value) { error.value = form.notableStudents.length ? '已选择不同班级的学生，请按班级分别保存。' : '请先选择一名学生，或在“按班级筛选”中选择一个班级后再保存。'; return }
+  saving.value = true; error.value = ''
+  try {
+    await teachingStore.saveLessonLog(selectedPlan.value, { grade: targetClass.value.grade, className: targetClass.value.className, date: form.date, reflection: form.reflection, notableStudents: form.notableStudents }, props.schedule?.id)
+    emit('changed'); emit('close')
+  } catch (reason) { error.value = reason instanceof Error ? reason.message : '保存结课登记失败。' } finally { saving.value = false }
+}
+
+watch(selectedClassKey, (next, previous) => { if (next !== previous) { studentSearch.value = ''; form.notableStudents = []; error.value = '' } })
+watch(() => [props.plan?.id, props.grade, props.className, props.progress?.lessonRecordId], async () => { resetEntryState(); await loadExisting() })
+watch(() => props.plan?.id, (id) => { selectedPlanId.value = id ?? '' })
+onMounted(async () => { students.value = await studentService.list(); resetEntryState(); await loadExisting(); await focusModalField() })
 </script>
 
-<template><Teleport to="body"><div class="fixed inset-0 z-50 bg-stone-950/30" @click.self="emit('close')"><section class="ml-auto flex h-full w-full max-w-3xl flex-col overflow-y-auto bg-white p-6 shadow-2xl"><header class="flex items-start justify-between gap-4"><div><p class="text-xs font-medium text-teal-700">{{ grade }}{{ className }} · {{ schedule ? `周${teachingStore.weekdayLabel[schedule.dayOfWeek - 1]} 第${schedule.period}节` : '课程进度单元' }}</p><h2 class="mt-1 text-lg font-semibold text-stone-800">{{ props.progress ? '授课日志与反思' : '教案速览与结课登记' }}</h2></div><button type="button" class="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100" @click="emit('close')"><X :size="18" /></button></header><div class="mt-5 flex border-b border-stone-200"><button type="button" class="border-b-2 px-4 py-2 text-sm font-medium" :class="activeTab === 'preview' ? 'border-teal-700 text-teal-800' : 'border-transparent text-stone-500'" @click="activeTab = 'preview'">教案速览</button><button type="button" class="border-b-2 px-4 py-2 text-sm font-medium" :class="activeTab === 'log' ? 'border-teal-700 text-teal-800' : 'border-transparent text-stone-500'" @click="activeTab = 'log'">结课登记 / 异常报送</button></div><p v-if="error" class="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{{ error }}</p><div v-if="activeTab === 'preview'" class="mt-5"><div v-if="!selectedPlan" class="rounded-xl border border-amber-200 bg-amber-50/40 p-4"><p class="text-sm font-semibold text-stone-800">该课时尚未备课</p><p class="mt-1 text-sm text-stone-500">选择教案后即可标记授课并登记课堂观察。</p><select v-model="selectedPlanId" class="mt-4 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"><option value="">请选择教案</option><option v-for="planItem in teachingStore.lessonPlans.filter((item) => item.gradeTarget === grade || item.gradeTarget === '全校通用')" :key="planItem.id" :value="planItem.id">{{ planItem.topicTitle }}</option></select><button type="button" class="mt-3 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" @click="bindPlan">关联为本课时教案</button></div><div v-else class="space-y-5"><section class="rounded-xl border border-stone-200 p-5"><p class="text-xs font-medium text-teal-700">{{ selectedPlan.gradeTarget }}</p><h3 class="mt-1 text-lg font-semibold text-stone-800">{{ selectedPlan.topicTitle }}</h3><p class="mt-2 text-sm leading-6 text-stone-600">{{ selectedPlan.description }}</p></section><section class="rounded-xl border border-stone-200 p-5"><h3 class="text-sm font-semibold text-stone-800">教学目标</h3><p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-stone-600">{{ selectedPlan.objectives || '未填写。' }}</p></section><section class="rounded-xl border border-stone-200 p-5"><h3 class="text-sm font-semibold text-stone-800">教案流程</h3><p class="mt-2 whitespace-pre-wrap text-sm leading-7 text-stone-600">{{ selectedPlan.procedureText }}</p><div v-if="selectedPlan.attachments.length" class="mt-4 flex flex-wrap gap-2"><span v-for="item in selectedPlan.attachments" :key="item" class="rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-600">{{ item }}</span></div></section><button v-if="!props.progress" type="button" class="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white" @click="activeTab = 'log'"><CheckCircle2 :size="16" />标记已上课</button></div></div><div v-else class="mt-5"><div v-if="props.progress" class="rounded-xl bg-teal-50 p-4 text-sm text-teal-800"><BookOpenCheck :size="16" class="mr-1 inline" />已登记授课。{{ existingReflection ? '下方展示并允许补充课堂反思。' : '' }}</div><div v-if="!selectedPlan" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">请先在“教案速览”中为本课时选择一份教案。</div><template v-else><label class="mt-4 block text-sm font-medium text-stone-700">授课日期<input v-model="form.date" type="date" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2" /></label><label class="mt-5 block text-sm font-medium text-stone-700">结课反思<textarea v-model="form.reflection" rows="5" class="mt-1.5 w-full rounded-lg border border-stone-200 p-3 text-sm leading-6" placeholder="记录课堂反馈、调整方向和后续安排。" /></label><section class="mt-5 rounded-xl border border-amber-200"><header class="border-b border-amber-100 bg-amber-50/40 p-4"><h3 class="text-sm font-semibold text-stone-800">课堂异常学生报送</h3><input v-model="studentSearch" class="mt-3 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" placeholder="按姓名或学号筛选本班学生" /></header><div class="grid sm:grid-cols-2"><div class="border-b border-stone-100 sm:border-b-0 sm:border-r"><p class="px-4 py-2 text-xs font-semibold text-stone-500">可选择学生</p><div class="max-h-48 overflow-y-auto"><button v-for="student in candidates" :key="student.id" type="button" class="flex w-full items-center justify-between border-t border-stone-50 px-4 py-2.5 text-left text-sm hover:bg-amber-50" @click="addStudent(student)"><span>{{ student.name }}</span><span class="text-xs text-amber-800">+ 报送</span></button><p v-if="!candidates.length" class="p-5 text-center text-xs text-stone-400">无可选择学生</p></div></div><div class="max-h-56 overflow-y-auto p-3"><p v-if="!form.notableStudents.length" class="py-4 text-center text-xs text-stone-400">尚未报送课堂观察</p><div v-for="item in form.notableStudents" v-else :key="item.studentId" class="mb-2 rounded-lg bg-amber-50 p-2.5"><div class="flex justify-between"><span class="text-sm font-medium text-stone-800">{{ item.studentName }}</span><button type="button" class="text-xs text-rose-600" @click="removeStudent(item.studentId)">移除</button></div><input v-model="item.note" class="mt-2 w-full rounded border border-amber-100 bg-white px-2 py-1.5 text-xs" placeholder="如：情绪低落、拒绝发言" /></div></div></div></section><button type="button" :disabled="saving" class="mt-5 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" @click="saveLog">{{ saving ? '保存中…' : props.progress ? '补充并保存日志' : '完成授课并保存' }}</button></template></div></section></div></Teleport></template>
+<template>
+  <Teleport to="body">
+    <div class="fixed inset-0 z-50 bg-stone-950/30" @click.self="emit('close')">
+      <section class="ml-auto flex h-full w-full max-w-3xl flex-col overflow-y-auto bg-white p-6 shadow-2xl">
+        <header class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-xs font-medium text-teal-700">{{ scopeLabel }} · {{ schedule ? `周${teachingStore.weekdayLabel[schedule.dayOfWeek - 1]} 第${schedule.period}节` : '课程进度单元' }}</p>
+            <h2 class="mt-1 text-lg font-semibold text-stone-800">{{ props.progress ? '授课日志与反思' : '教案速览与结课登记' }}</h2>
+          </div>
+          <button type="button" class="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100" @click="emit('close')"><X :size="18" /></button>
+        </header>
+
+        <div class="mt-5 flex border-b border-stone-200">
+          <button type="button" class="border-b-2 px-4 py-2 text-sm font-medium" :class="activeTab === 'preview' ? 'border-teal-700 text-teal-800' : 'border-transparent text-stone-500'" @click="activeTab = 'preview'">教案速览</button>
+          <button type="button" class="border-b-2 px-4 py-2 text-sm font-medium" :class="activeTab === 'log' ? 'border-teal-700 text-teal-800' : 'border-transparent text-stone-500'" @click="activeTab = 'log'">结课登记 / 异常报送</button>
+        </div>
+        <p v-if="error" class="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{{ error }}</p>
+
+        <div v-if="activeTab === 'preview'" class="mt-5">
+          <div v-if="!selectedPlan" class="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+            <p class="text-sm font-semibold text-stone-800">该课时尚未备课</p>
+            <p class="mt-1 text-sm text-stone-500">选择教案后即可标记授课并登记课堂观察。</p>
+            <select v-model="selectedPlanId" class="mt-4 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"><option value="">请选择教案</option><option v-for="planItem in teachingStore.lessonPlans.filter((item) => item.gradeTarget === grade || item.gradeTarget === '全校通用')" :key="planItem.id" :value="planItem.id">{{ planItem.topicTitle }}</option></select>
+            <button type="button" class="mt-3 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" @click="bindPlan">关联为本课时教案</button>
+          </div>
+          <div v-else class="space-y-5">
+            <section class="rounded-xl border border-stone-200 p-5"><p class="text-xs font-medium text-teal-700">{{ selectedPlan.gradeTarget }}</p><h3 class="mt-1 text-lg font-semibold text-stone-800">{{ selectedPlan.topicTitle }}</h3><p class="mt-2 text-sm leading-6 text-stone-600">{{ selectedPlan.description }}</p></section>
+            <section class="rounded-xl border border-stone-200 p-5"><h3 class="text-sm font-semibold text-stone-800">教学目标</h3><p class="mt-2 whitespace-pre-wrap text-sm leading-6 text-stone-600">{{ selectedPlan.objectives || '未填写。' }}</p></section>
+            <section class="rounded-xl border border-stone-200 p-5"><h3 class="text-sm font-semibold text-stone-800">教案流程</h3><p class="mt-2 whitespace-pre-wrap text-sm leading-7 text-stone-600">{{ selectedPlan.procedureText }}</p><div v-if="selectedPlan.attachments.length" class="mt-4 flex flex-wrap gap-2"><span v-for="item in selectedPlan.attachments" :key="item" class="rounded-full bg-stone-100 px-2.5 py-1 text-xs text-stone-600">{{ item }}</span></div></section>
+            <button v-if="!props.progress" type="button" class="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white" @click="activeTab = 'log'"><CheckCircle2 :size="16" />标记已上课</button>
+          </div>
+        </div>
+
+        <div v-else class="mt-5">
+          <div v-if="props.progress" class="rounded-xl bg-teal-50 p-4 text-sm text-teal-800"><BookOpenCheck :size="16" class="mr-1 inline" />已登记授课。{{ existingReflection ? '下方展示并允许补充课堂反思。' : '' }}</div>
+          <div v-if="!selectedPlan" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">请先在“教案速览”中为本课时选择一份教案。</div>
+          <template v-else>
+            <label class="mt-4 block text-sm font-medium text-stone-700">授课日期<input v-model="form.date" type="date" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2" /></label>
+            <label class="mt-5 block text-sm font-medium text-stone-700">结课反思<textarea v-model="form.reflection" rows="5" class="mt-1.5 w-full rounded-lg border border-stone-200 p-3 text-sm leading-6" placeholder="记录课堂反馈、调整方向和后续安排。" /></label>
+            <section class="mt-5 rounded-xl border border-amber-200">
+              <header class="border-b border-amber-100 bg-amber-50/40 p-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div><h3 class="text-sm font-semibold text-stone-800">课堂异常学生报送</h3><p class="mt-1 text-xs text-stone-500">{{ isClassLocked ? '当前已锁定本班，只显示本班在读学生。' : '默认可在本教案单元关联的所有年级/班级中搜索，不需要先选班。' }}</p></div>
+                  <label v-if="!isClassLocked" class="flex items-center gap-2 text-xs font-medium text-stone-600">按班级筛选（可选）<select v-model="selectedClassKey" class="rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs"><option value="">全部关联班级</option><option v-for="option in scopedClassOptions" :key="classKey(option)" :value="classKey(option)">{{ option.grade }}{{ option.className }}</option></select></label>
+                </div>
+                <input v-model="studentSearch" class="mt-3 w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm" :placeholder="isClassLocked ? '按姓名或学号筛选本班学生' : '按姓名或学号筛选关联年级/班级学生'" />
+              </header>
+              <div class="grid sm:grid-cols-2">
+                <div class="border-b border-stone-100 sm:border-b-0 sm:border-r"><p class="px-4 py-2 text-xs font-semibold text-stone-500">可选择学生 <span class="font-normal text-stone-400">({{ candidates.length }})</span></p><div class="max-h-48 overflow-y-auto"><button v-for="student in candidates" :key="student.id" type="button" class="flex w-full items-center justify-between border-t border-stone-50 px-4 py-2.5 text-left text-sm hover:bg-amber-50" @click="addStudent(student)"><span><strong>{{ student.name }}</strong><span class="ml-2 text-xs text-stone-400">{{ student.studentNo }} · {{ getStudentGrade(student, termStore.currentTerm) }}{{ student.className }}</span></span><span class="text-xs text-amber-800">+ 报送</span></button><p v-if="!candidates.length" class="p-5 text-center text-xs text-stone-400">无可选择学生</p></div></div>
+                <div class="max-h-56 overflow-y-auto p-3"><p v-if="!form.notableStudents.length" class="py-4 text-center text-xs text-stone-400">尚未报送课堂观察</p><div v-for="item in form.notableStudents" v-else :key="item.studentId" class="mb-2 rounded-lg bg-amber-50 p-2.5"><div class="flex justify-between"><span class="text-sm font-medium text-stone-800">{{ item.studentName }}</span><button type="button" class="text-xs text-rose-600" @click="removeStudent(item.studentId)">移除</button></div><input v-model="item.note" class="mt-2 w-full rounded border border-amber-100 bg-white px-2 py-1.5 text-xs" placeholder="如：情绪低落、拒绝发言" /></div></div>
+              </div>
+            </section>
+            <p v-if="!isClassLocked && targetClass" class="mt-2 text-xs text-stone-400">本次保存将归入：{{ targetClass.grade }}{{ targetClass.className }}。如需登记其他班级，请先切换班级筛选后再保存。</p>
+            <button type="button" :disabled="saving" class="mt-5 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" @click="saveLog">{{ saving ? '保存中…' : props.progress ? '补充并保存日志' : '完成授课并保存' }}</button>
+          </template>
+        </div>
+      </section>
+    </div>
+  </Teleport>
+</template>
