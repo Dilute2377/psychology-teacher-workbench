@@ -1,5 +1,6 @@
 import { db } from '../db'
 import type { ConsultationRecord, MedicalAttachment, Student, StudentWarningLevel, TimelineEvent, WorkTrail } from '../types/schema'
+import { crisisBadgeFromKey, levelKeyForStoredValue, readCrisisConfig } from '../stores/useCrisisConfigStore'
 
 export type DossierData = {
   student: Student
@@ -8,14 +9,6 @@ export type DossierData = {
   timeline: TimelineEvent[]
   schoolName: string
   generatedAt: string
-}
-
-export const warningLabels: Record<StudentWarningLevel, string> = {
-  red: '一级预警（红色·危机）',
-  orange: '二级预警（橙色·重点关注）',
-  yellow: '三级预警（黄色·一般关注）',
-  none: '无预警 / 普通个案',
-  other: '其他个案',
 }
 
 function escapeHtml(value: unknown) {
@@ -28,6 +21,13 @@ export function getStudentWarningLevel(student: Student): StudentWarningLevel {
   if (student.riskLevel === 'warning') return 'orange'
   if (student.riskLevel === 'attention') return 'yellow'
   return student.isIndividualCase ? 'other' : 'none'
+}
+
+export function getStudentWarningLabel(value: StudentWarningLevel | string | null | undefined) {
+  if (value === 'other') return '🟣 其他个案'
+  const config = readCrisisConfig()
+  const badge = crisisBadgeFromKey(levelKeyForStoredValue(value, config), config)
+  return badge.key === 'normal' ? `${badge.emoji} ${badge.label} / 普通个案` : `${badge.emoji} ${badge.label}`
 }
 
 export function formatDossierDate(value: string | undefined) {
@@ -65,7 +65,8 @@ function renderAttachment(attachment: MedicalAttachment) {
 
 function renderConsultation(record: ConsultationRecord) {
   const soap = record.soap ?? { subjective: '', objective: '', assessment: '', plan: '' }
-  return `<article class="consultation print-no-break"><div class="record-heading"><strong>第 ${escapeHtml(record.sessionIndex || 1)} 次个体咨询</strong><span>${escapeHtml(record.date)} · ${escapeHtml(record.durationMinutes || 40)} 分钟 · ${record.visitType === 'active' ? '主动来访' : record.visitType === 'referral' ? '教师转介' : '普查约访'}</span></div><p class="muted">困扰类型：${escapeHtml(record.problemCategories?.join('、') || '未分类')} · 当次风险：${escapeHtml(record.riskLevelAtTime || '未记录')}</p><div class="soap-grid"><div><b>S · 主观陈述</b><p>${escapeHtml(soap.subjective || '未填写')}</p></div><div><b>O · 客观观察</b><p>${escapeHtml(soap.objective || '未填写')}</p></div><div><b>A · 评估分析</b><p>${escapeHtml(soap.assessment || '未填写')}</p></div><div><b>P · 后续计划</b><p>${escapeHtml(soap.plan || '未填写')}</p></div></div></article>`
+  const riskText = record.riskLevelAtTime ? getStudentWarningLabel(record.riskLevelAtTime) : '未记录'
+  return `<article class="consultation print-no-break"><div class="record-heading"><strong>第 ${escapeHtml(record.sessionIndex || 1)} 次个体咨询</strong><span>${escapeHtml(record.date)} · ${escapeHtml(record.durationMinutes || 40)} 分钟 · ${record.visitType === 'active' ? '主动来访' : record.visitType === 'referral' ? '教师转介' : '普查约访'}</span></div><p class="muted">困扰类型：${escapeHtml(record.problemCategories?.join('、') || '未分类')} · 当次评级：${escapeHtml(riskText)}</p><div class="soap-grid"><div><b>S · 主观陈述</b><p>${escapeHtml(soap.subjective || '未填写')}</p></div><div><b>O · 客观观察</b><p>${escapeHtml(soap.objective || '未填写')}</p></div><div><b>A · 评估分析</b><p>${escapeHtml(soap.assessment || '未填写')}</p></div><div><b>P · 后续计划</b><p>${escapeHtml(soap.plan || '未填写')}</p></div></div></article>`
 }
 
 function renderWorkTrail(record: WorkTrail) {
@@ -86,7 +87,7 @@ export async function buildStudentDossierHtml(studentId: string) {
   if (!data) throw new Error('未找到该学生档案。')
   const student = data.student
   const attachments = student.medicalAttachments ?? []
-  const currentWarning = warningLabels[getStudentWarningLevel(student)]
+  const currentWarning = getStudentWarningLabel(getStudentWarningLevel(student))
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(student.name)} - 学生心理健康完整卷宗</title><style>
     @page{size:A4 portrait;margin:13mm 15mm}*{box-sizing:border-box}body{margin:0;color:#1e293b;background:#fff;font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:11px;line-height:1.65}h1,h2,h3,p{margin:0}#dossier{max-width:794px;margin:0 auto}.cover{min-height:230px;display:flex;flex-direction:column;justify-content:center;border-bottom:2px solid #0f766e}.eyebrow{font-size:11px;letter-spacing:.2em;color:#0f766e;font-weight:700}.cover h1{margin-top:12px;font-size:25px;line-height:1.35;color:#0f172a}.cover-meta{display:flex;justify-content:space-between;gap:16px;margin-top:28px;color:#475569}.badge{display:inline-block;border:1px solid #86efac;border-radius:999px;padding:2px 9px;color:#047857;background:#f0fdf4;font-size:10px;font-weight:700}.section{margin-top:20px}.section h2{padding-bottom:6px;border-bottom:1px solid #cbd5e1;color:#0f766e;font-size:15px}.info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid #e2e8f0;margin-top:10px}.info-item{padding:7px 10px;border-right:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0}.info-item:nth-child(2n){border-right:0}.info-item:nth-last-child(-n+2){border-bottom:0}.label{display:block;color:#64748b;font-size:10px}.value{font-weight:600;color:#1e293b}.record-list{padding:0;margin:10px 0;list-style:none}.record-row{border-bottom:1px solid #e2e8f0;padding:8px 0}.record-row:last-child{border-bottom:0}.record-row div,.record-heading{display:flex;justify-content:space-between;gap:12px}.record-row strong,.record-heading strong{color:#0f172a}.record-row p{margin-top:3px;white-space:pre-wrap;color:#475569}.muted{color:#64748b;font-size:10px;font-weight:400}.consultation{border:1px solid #e2e8f0;border-radius:8px;margin-top:10px;padding:10px}.consultation+.consultation{margin-top:8px}.soap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.soap-grid>div{border:1px solid #e2e8f0;border-radius:6px;padding:7px}.soap-grid b{color:#0f766e;font-size:10px}.soap-grid p{margin-top:3px;white-space:pre-wrap;color:#475569}.timeline{list-style:none;margin:10px 0;padding:0}.timeline-row{display:grid;grid-template-columns:135px 1fr;gap:12px;border-left:2px solid #99f6e4;padding:5px 0 5px 12px}.timeline-row time{color:#64748b;font-size:10px}.timeline-row p{color:#475569;white-space:pre-wrap}.footer{display:flex;justify-content:space-between;margin-top:26px;padding-top:8px;border-top:1px solid #cbd5e1;color:#64748b;font-size:10px}.print-no-break{break-inside:avoid}
     @media print{body{background:#fff}#dossier{max-width:none}.cover{min-height:210px}.section{break-inside:auto}.print-no-break{break-inside:avoid;page-break-inside:avoid}.no-print{display:none!important}}

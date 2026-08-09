@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { Printer, X } from '@lucide/vue'
-import { buildDossierTimeline, formatDossierDate, getStudentWarningLevel, loadStudentDossierData, warningLabels, type DossierData } from '../../services/singleStudentExporter'
+import { buildDossierTimeline, formatDossierDate, getStudentWarningLabel, getStudentWarningLevel, loadStudentDossierData, type DossierData } from '../../services/singleStudentExporter'
 
 const props = defineProps<{ studentId: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -38,7 +38,7 @@ onMounted(async () => {
           <template v-else-if="data">
             <section class="archive-cover print-no-break"><p class="archive-eyebrow">{{ data.schoolName }}</p><h1>《学生心理健康辅导与危机干预完整卷宗》</h1><div class="archive-cover-meta"><span>学生：{{ data.student.name }} · 学号：{{ data.student.studentNo }}</span><span class="archive-badge">内部资料 · 保密</span></div></section>
 
-            <section class="archive-section print-no-break"><h2>模块 1 · 基本信息</h2><div class="archive-info-grid"><div><span>姓名</span><strong>{{ data.student.name }}</strong></div><div><span>学号</span><strong>{{ data.student.studentNo }}</strong></div><div><span>班级</span><strong>{{ data.student.grade }} {{ data.student.className }}</strong></div><div><span>预警 / 个案等级</span><strong>{{ warningLabels[getStudentWarningLevel(data.student)] }}</strong></div><div><span>监护人 / 紧急联系人</span><strong>{{ data.student.emergencyContact?.name || '—' }} · {{ data.student.emergencyContact?.phone || '—' }}</strong></div><div><span>困扰类型</span><strong>{{ data.student.tags?.join('、') || '以咨询记录为准' }}</strong></div></div></section>
+            <section class="archive-section print-no-break"><h2>模块 1 · 基本信息</h2><div class="archive-info-grid"><div><span>姓名</span><strong>{{ data.student.name }}</strong></div><div><span>学号</span><strong>{{ data.student.studentNo }}</strong></div><div><span>班级</span><strong>{{ data.student.grade }} {{ data.student.className }}</strong></div><div><span>预警 / 个案等级</span><strong>{{ getStudentWarningLabel(getStudentWarningLevel(data.student)) }}</strong></div><div><span>监护人 / 紧急联系人</span><strong>{{ data.student.emergencyContact?.name || '—' }} · {{ data.student.emergencyContact?.phone || '—' }}</strong></div><div><span>困扰类型</span><strong>{{ data.student.tags?.join('、') || '以咨询记录为准' }}</strong></div></div></section>
 
             <section class="archive-section"><h2>模块 2 · 医疗与会谈存证清单</h2><ul class="archive-list"><li v-for="attachment in data.student.medicalAttachments ?? []" :key="attachment.id" class="archive-row"><div><strong>{{ attachment.name }}</strong><span>{{ attachment.type === 'pdf' ? 'PDF' : '图片' }} · {{ attachment.date }}</span></div><p>{{ attachment.note || '未填写备注' }}</p></li><li v-if="!(data.student.medicalAttachments ?? []).length" class="archive-muted">暂无就诊或会谈附件。</li></ul></section>
 

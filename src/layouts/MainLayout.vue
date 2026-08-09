@@ -9,7 +9,6 @@ import CensusBatchList from '../components/census/CensusBatchList.vue'
 import GroupList from '../components/group/GroupList.vue'
 import WorkTrailList from '../components/work-trail/WorkTrailList.vue'
 import LessonPlanLibrary from '../components/lesson/LessonPlanLibrary.vue'
-import DashboardAlertList from '../components/dashboard/DashboardAlertList.vue'
 import AppHeader from '../components/layout/AppHeader.vue'
 import AcademicYearPromotionModal from '../components/system/AcademicYearPromotionModal.vue'
 import AppLockModal from '../components/system/AppLockModal.vue'
@@ -52,8 +51,7 @@ const closeDialog = () => { activeDialog.value = null }
       </aside>
       <div class="flex min-w-0 flex-1 overflow-hidden">
         <template v-if="route.path !== '/settings'">
-        <section v-if="route.path === '/'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><DashboardAlertList /></section>
-        <section v-else-if="route.path === '/students' || route.path === '/students/key-students'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><StudentList /></section>
+        <section v-if="route.path === '/students' || route.path === '/students/key-students'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><StudentList /></section>
         <section v-else-if="route.path === '/consultations'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><ConsultationList /></section>
         <section v-else-if="route.path === '/census'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><CensusBatchList /></section>
         <section v-else-if="route.path === '/groups'" class="flex h-full w-80 shrink-0 flex-col overflow-hidden border-r border-stone-200 bg-white"><GroupList /></section>

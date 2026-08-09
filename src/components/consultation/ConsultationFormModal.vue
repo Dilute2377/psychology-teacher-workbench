@@ -10,6 +10,7 @@ import { db } from '../../db'
 import { getStudentGrade } from '../../utils/academic'
 import { useWorkbenchStore } from '../../stores/workbench'
 import { focusModalField } from '../../utils/focusModalField'
+import { useCrisisConfigStore } from '../../stores/useCrisisConfigStore'
 import type { ConsultationRecord, RiskLevel, SoapField, Student } from '../../types/schema'
 
 const props = defineProps<{ editingId: string | null }>()
@@ -19,6 +20,7 @@ const templateStore = useConsultationTemplateStore()
 const categoryStore = useCategoryStore()
 const termStore = useTermStore()
 const workbench = useWorkbenchStore()
+const crisisConfig = useCrisisConfigStore()
 const students = ref<Student[]>([])
 const studentSearch = ref('')
 const isStudentLocked = ref(false)
@@ -28,7 +30,7 @@ const newWord = ref('')
 const newCategory = ref('')
 const editingTemplate = ref<SoapField | null>(null)
 const templateDraft = ref('')
-const riskLabels: Record<RiskLevel, string> = { normal: '正常', attention: '关注', warning: '重点关注', crisis: '危机预警' }
+const riskOptions = computed(() => crisisConfig.getDropdownOptions())
 const soapSections: Array<{ key: SoapField; title: string }> = [
   { key: 'subjective', title: 'S · 主观陈述' }, { key: 'objective', title: 'O · 客观观察' },
   { key: 'assessment', title: 'A · 评估分析' }, { key: 'plan', title: 'P · 后续计划' },
@@ -89,6 +91,7 @@ async function handleSubmit() {
   } finally { isSaving.value = false }
 }
 onMounted(async () => {
+  crisisConfig.load()
   await Promise.all([templateStore.load(), categoryStore.load(), (async () => { students.value = await studentService.list() })()])
   const editing = props.editingId ? await db.consultations.get(props.editingId) : undefined
   reset(editing)
@@ -123,12 +126,12 @@ watch(studentSearch, (value) => { if (selectedStudent.value && value !== selecte
         <p v-if="errorMessage" class="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{{ errorMessage }}</p>
 
         <div class="mt-5 grid gap-4 md:grid-cols-3">
-          <div class="relative md:col-span-2"><label class="text-sm font-medium text-stone-700">学生选择<input v-model="studentSearch" :disabled="isStudentLocked" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2 disabled:cursor-not-allowed disabled:bg-stone-50" placeholder="搜索姓名或学号" /></label><div v-if="studentSearch && studentSearch !== selectedStudent?.name && !isStudentLocked" class="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-stone-200 bg-white shadow-lg"><button v-for="student in matchingStudents" :key="student.id" type="button" class="block w-full px-3 py-2 text-left text-sm hover:bg-teal-50" @click="chooseStudent(student)">{{ student.name }} · {{ student.studentNo }} · {{ getStudentGrade(student, termStore.currentTerm) }}{{ student.className }}</button><p v-if="matchingStudents.length === 0" class="px-3 py-2 text-sm text-stone-400">未找到匹配学生</p></div><p v-if="selectedStudent" class="mt-1 text-xs text-teal-700">{{ getStudentGrade(selectedStudent, termStore.currentTerm) }}{{ selectedStudent.className }} · 当前预警：{{ riskLabels[selectedStudent.riskLevel] }}<span v-if="isStudentLocked"> · 已从业务上下文锁定</span></p></div>
+          <div class="relative md:col-span-2"><label class="text-sm font-medium text-stone-700">学生选择<input v-model="studentSearch" :disabled="isStudentLocked" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2 disabled:cursor-not-allowed disabled:bg-stone-50" placeholder="搜索姓名或学号" /></label><div v-if="studentSearch && studentSearch !== selectedStudent?.name && !isStudentLocked" class="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-lg border border-stone-200 bg-white shadow-lg"><button v-for="student in matchingStudents" :key="student.id" type="button" class="block w-full px-3 py-2 text-left text-sm hover:bg-teal-50" @click="chooseStudent(student)">{{ student.name }} · {{ student.studentNo }} · {{ getStudentGrade(student, termStore.currentTerm) }}{{ student.className }}</button><p v-if="matchingStudents.length === 0" class="px-3 py-2 text-sm text-stone-400">未找到匹配学生</p></div><p v-if="selectedStudent" class="mt-1 text-xs text-teal-700">{{ getStudentGrade(selectedStudent, termStore.currentTerm) }}{{ selectedStudent.className }} · 当前预警：{{ crisisConfig.getStudentWarningBadge(selectedStudent.warningLevel ?? selectedStudent.riskLevel).emoji }} {{ crisisConfig.getStudentWarningBadge(selectedStudent.warningLevel ?? selectedStudent.riskLevel).label }}<span v-if="isStudentLocked"> · 已从业务上下文锁定</span></p></div>
           <label class="text-sm font-medium text-stone-700">咨询日期<input v-model="form.date" type="date" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2" /></label>
           <label class="text-sm font-medium text-stone-700">预约时间（用于提醒）<input v-model="form.appointmentAt" type="datetime-local" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2" /></label>
           <label class="text-sm font-medium text-stone-700">咨询时长（分钟）<input v-model.number="form.durationMinutes" min="1" type="number" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2" /></label>
           <label class="text-sm font-medium text-stone-700">咨询次数（可修改）<input v-model.number="form.sessionIndex" min="1" type="number" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2" /><span class="mt-1 block text-xs text-blue-600">第 {{ form.sessionIndex || 1 }} 次</span></label>
-          <label class="text-sm font-medium text-stone-700">危机预警等级<select v-model="form.riskLevel" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2"><option v-for="(label, value) in riskLabels" :key="value" :value="value">{{ label }}</option></select></label>
+          <label class="text-sm font-medium text-stone-700">危机评级<select v-model="form.riskLevel" class="mt-1.5 w-full rounded-lg border border-stone-200 px-3 py-2"><option v-for="item in riskOptions" :key="item.value" :value="item.riskValue">{{ item.emoji }} {{ item.label }}</option></select></label>
         </div>
 
         <fieldset class="mt-5"><legend class="text-sm font-medium text-stone-700">来访类型</legend><div class="mt-2 flex flex-wrap gap-4 text-sm"><label><input v-model="form.visitType" type="radio" value="active" class="mr-1 accent-teal-700" />主动来访</label><label><input v-model="form.visitType" type="radio" value="referral" class="mr-1 accent-teal-700" />教师转介</label><label><input v-model="form.visitType" type="radio" value="census_followup" class="mr-1 accent-teal-700" />普查约访</label></div></fieldset>

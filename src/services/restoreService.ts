@@ -50,4 +50,8 @@ export async function restoreBackup(payload: BackupPayload, mode: 'replace' | 'm
     const value = cleanPayload.localStorage.hasSeenLaunchNotice
     if (value === null) localStorage.removeItem('hasSeenLaunchNotice'); else localStorage.setItem('hasSeenLaunchNotice', value)
   }
+  if (cleanPayload.localStorage?.crisisConfig !== undefined) {
+    const value = cleanPayload.localStorage.crisisConfig
+    if (value === null) localStorage.removeItem('crisisConfig'); else localStorage.setItem('crisisConfig', value)
+  }
 }

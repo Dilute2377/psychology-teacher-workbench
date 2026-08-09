@@ -13,6 +13,7 @@ import {
   Plus,
   Rocket,
   Send,
+  ShieldAlert,
   Settings2,
   Tags,
   Trash2,
@@ -33,9 +34,11 @@ import { clearMockDataOnly, factoryReset } from "../../services/resetService";
 import { selectBackupFolder } from "../../services/backupService";
 import { generateMockData } from "../../utils/mockDataGenerator";
 import FactoryResetConfirmModal from "../../components/system/FactoryResetConfirmModal.vue";
+import CrisisConfigPanel from "../../components/system/CrisisConfigPanel.vue";
 
 type Tab =
   | "school"
+  | "crisis"
   | "categories"
   | "terms"
   | "security"
@@ -66,6 +69,7 @@ const resetVisible = ref(false);
 const usages = ref<Record<string, TermUsage>>({});
 const tabs = [
   { id: "school" as const, label: "学校与教学配置", icon: Settings2 },
+  { id: "crisis" as const, label: "预警体系配置", icon: ShieldAlert },
   { id: "categories" as const, label: "问题分类与词库", icon: Tags },
   { id: "terms" as const, label: "学期与升学", icon: GraduationCap },
   { id: "security" as const, label: "安全与锁屏", icon: LockKeyhole },
@@ -73,6 +77,34 @@ const tabs = [
   { id: "feishu" as const, label: "飞书通知机器人", icon: BellRing },
   { id: "about" as const, label: "关于系统", icon: Info },
 ];
+const settingGroups = [
+  {
+    label: "基础与教学配置",
+    icon: GraduationCap,
+    items: tabs.filter((tab) => ["school", "categories", "terms"].includes(tab.id)),
+  },
+  {
+    label: "预警与规则",
+    icon: ShieldAlert,
+    items: tabs.filter((tab) => tab.id === "crisis"),
+  },
+  {
+    label: "系统与安全",
+    icon: Settings2,
+    items: tabs.filter((tab) => ["security", "backup", "feishu", "about"].includes(tab.id)),
+  },
+];
+const settingDescriptions: Record<Tab, string> = {
+  school: "设置系统学段、班级数量与课时作息。",
+  crisis: "统一危机评级方向、别名与全系统显示口径。",
+  categories: "维护咨询问题分类和 SOAP 常用观察词。",
+  terms: "管理学期时间轴与升学迁移。",
+  security: "设置本机应用锁 PIN，保护打开工作台的入口。",
+  backup: "导出、恢复和调度本地加密备份。",
+  feishu: "配置飞书机器人提醒与测试消息。",
+  about: "查看软件来源、隐私与合规声明。",
+};
+const activeTabMeta = computed(() => tabs.find((tab) => tab.id === activeTab.value) ?? tabs[0]);
 const categoryHint = computed(() => "已被历史咨询引用的分类会锁定保留。");
 async function refreshTerms() {
   await termStore.fetchTerms();
@@ -188,29 +220,35 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto bg-slate-50 p-6">
-    <div class="mx-auto max-w-6xl">
-      <p class="text-sm font-medium text-teal-700">系统设置</p>
-      <h1 class="mt-1 text-2xl font-semibold text-stone-800">全局配置中心</h1>
-      <nav
-        class="mt-6 flex overflow-x-auto rounded-xl border border-stone-200 bg-white p-1.5"
-        aria-label="系统设置页签"
-      >
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          type="button"
-          class="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium"
-          :class="
-            activeTab === tab.id
-              ? 'bg-teal-700 text-white shadow-sm'
-              : 'text-stone-600 hover:bg-stone-100'
-          "
-          @click="activeTab = tab.id"
-        >
-          <component :is="tab.icon" :size="16" />{{ tab.label }}
-        </button>
+  <div class="settings-shell flex h-full min-h-0 overflow-hidden bg-slate-50">
+    <aside class="settings-sidebar flex h-full w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <header class="shrink-0 border-b border-slate-100 px-5 py-5">
+        <div class="flex items-center gap-2.5 text-slate-800">
+          <span class="flex size-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><Settings2 :size="17" /></span>
+          <div><p class="text-sm font-bold">系统设置</p><p class="mt-0.5 text-[11px] text-slate-400">全局配置中心</p></div>
+        </div>
+      </header>
+      <nav class="settings-nav min-h-0 flex-1 overflow-y-auto px-3 py-4" aria-label="系统设置导航">
+        <section v-for="group in settingGroups" :key="group.label" class="settings-nav-group mb-5 last:mb-0">
+          <div class="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-bold tracking-wide text-slate-400"><component :is="group.icon" :size="13" />{{ group.label }}</div>
+          <div class="space-y-1">
+            <button v-for="item in group.items" :key="item.id" type="button" class="settings-nav-item group flex w-full items-center gap-2.5 rounded-lg border-r-2 px-3 py-2.5 text-left text-sm transition-all" :class="activeTab === item.id ? 'border-emerald-600 bg-emerald-50 font-bold text-emerald-700 shadow-sm' : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800'" @click="activeTab = item.id">
+              <component :is="item.icon" :size="16" :stroke-width="activeTab === item.id ? 2.2 : 1.8" />
+              <span class="truncate">{{ item.label }}</span>
+            </button>
+          </div>
+        </section>
       </nav>
+    </aside>
+    <main class="settings-main min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <div class="mx-auto max-w-6xl">
+        <header class="settings-page-header mb-5 border-b border-slate-200 pb-5">
+          <p class="text-xs font-semibold tracking-[0.16em] text-emerald-700">系统设置</p>
+          <h1 class="mt-1 text-2xl font-semibold text-slate-800">{{ activeTabMeta.label }}</h1>
+          <p class="mt-1 text-sm text-slate-500">{{ settingDescriptions[activeTabMeta.id] }}</p>
+        </header>
+        <Transition name="settings-fade" mode="out-in">
+          <div :key="activeTab">
       <section v-if="activeTab === 'school'" class="mt-5 space-y-5">
         <article
           class="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
@@ -351,6 +389,9 @@ onMounted(async () => {
             </table>
           </div>
         </article>
+      </section>
+      <section v-else-if="activeTab === 'crisis'" class="mt-5 max-w-4xl">
+        <CrisisConfigPanel />
       </section>
       <section
         v-else-if="activeTab === 'categories'"
@@ -741,7 +782,10 @@ onMounted(async () => {
           <Info :size="16" />重新查看开源声明与赞赏码
         </button>
       </section>
-    </div>
+          </div>
+        </Transition>
+      </div>
+    </main>
     <TermManagerModal
       v-if="showTerms"
       @close="
@@ -763,3 +807,82 @@ onMounted(async () => {
     /><FactoryResetConfirmModal v-if="resetVisible" :busy="mockBusy" @cancel="resetVisible = false" @confirm="confirmFactoryReset" />
   </div>
 </template>
+
+<style scoped>
+.settings-fade-enter-active,
+.settings-fade-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.settings-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.settings-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (max-width: 900px) {
+  .settings-shell {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .settings-sidebar {
+    width: 100%;
+    height: auto;
+    max-height: 270px;
+  }
+
+  .settings-sidebar > header {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .settings-nav {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    overflow-y: auto;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .settings-nav-group {
+    margin-bottom: 0 !important;
+  }
+
+  .settings-nav-group > .mb-2 {
+    margin-bottom: 0.35rem;
+    padding-left: 0.5rem;
+    font-size: 10px;
+  }
+
+  .settings-nav-group > .space-y-1 {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .settings-nav-item {
+    min-height: 2.25rem;
+    padding: 0.5rem 0.625rem;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .settings-sidebar {
+    max-height: 390px;
+  }
+
+  .settings-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-nav-group > .space-y-1 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>
