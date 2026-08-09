@@ -13,6 +13,7 @@ import {
   Plus,
   Rocket,
   Send,
+  ShieldAlert,
   Settings2,
   Tags,
   Trash2,
@@ -33,9 +34,11 @@ import { clearMockDataOnly, factoryReset } from "../../services/resetService";
 import { selectBackupFolder } from "../../services/backupService";
 import { generateMockData } from "../../utils/mockDataGenerator";
 import FactoryResetConfirmModal from "../../components/system/FactoryResetConfirmModal.vue";
+import CrisisConfigPanel from "../../components/system/CrisisConfigPanel.vue";
 
 type Tab =
   | "school"
+  | "crisis"
   | "categories"
   | "terms"
   | "security"
@@ -66,6 +69,7 @@ const resetVisible = ref(false);
 const usages = ref<Record<string, TermUsage>>({});
 const tabs = [
   { id: "school" as const, label: "学校与教学配置", icon: Settings2 },
+  { id: "crisis" as const, label: "预警体系配置", icon: ShieldAlert },
   { id: "categories" as const, label: "问题分类与词库", icon: Tags },
   { id: "terms" as const, label: "学期与升学", icon: GraduationCap },
   { id: "security" as const, label: "安全与锁屏", icon: LockKeyhole },
@@ -351,6 +355,9 @@ onMounted(async () => {
             </table>
           </div>
         </article>
+      </section>
+      <section v-else-if="activeTab === 'crisis'" class="mt-5 max-w-4xl">
+        <CrisisConfigPanel />
       </section>
       <section
         v-else-if="activeTab === 'categories'"

@@ -2,29 +2,15 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { db } from '../db'
 import { getConsultationCategoryLabel } from './useConsultationStore'
+import { useCrisisConfigStore, type CrisisLevelKey } from './useCrisisConfigStore'
 import type { ConsultationRecord, RiskLevel, Student } from '../types/schema'
 
 export type OverviewRiskLevel = 'level_1' | 'level_2' | 'level_3' | 'normal'
-
-export const OVERVIEW_RISK_META: Array<{ key: OverviewRiskLevel; label: string; shortLabel: string; color: string; barClass: string }> = [
-  { key: 'level_1', label: '一级预警（红色·危机）', shortLabel: '红色', color: '#dc5c68', barClass: 'bg-rose-500' },
-  { key: 'level_2', label: '二级预警（橙色·重点关注）', shortLabel: '橙色', color: '#ed9a48', barClass: 'bg-orange-400' },
-  { key: 'level_3', label: '三级预警（黄色·一般关注）', shortLabel: '黄色', color: '#d6b24c', barClass: 'bg-amber-400' },
-  { key: 'normal', label: '正常（无风险）', shortLabel: '正常', color: '#61a77f', barClass: 'bg-emerald-500' },
-]
-
-export function normalizeOverviewRiskLevel(level?: string | null): OverviewRiskLevel {
-  if (level === 'level_1' || level === 'crisis' || level === 'red') return 'level_1'
-  if (level === 'level_2' || level === 'warning' || level === 'orange') return 'level_2'
-  if (level === 'level_3' || level === 'attention' || level === 'yellow') return 'level_3'
-  return 'normal'
-}
-
-function overviewLevelForStudent(student: Student) {
-  return normalizeOverviewRiskLevel(student.warningLevel ?? student.riskLevel)
-}
+export function normalizeOverviewRiskLevel(level?: string | null): OverviewRiskLevel { return useCrisisConfigStore().resolveLevelKey(level) }
+function overviewLevelForStudent(student: Student) { return normalizeOverviewRiskLevel(student.warningLevel ?? student.riskLevel) }
 
 export const useOverviewStore = defineStore('overview', () => {
+  const crisisConfig = useCrisisConfigStore()
   const students = ref<Student[]>([])
   const allConsultations = ref<ConsultationRecord[]>([])
   const consultations = ref<ConsultationRecord[]>([])
@@ -37,7 +23,7 @@ export const useOverviewStore = defineStore('overview', () => {
     activeStudents.value.forEach((student) => { counts[overviewLevelForStudent(student)] += 1 })
     return counts
   })
-  const riskDistribution = computed(() => OVERVIEW_RISK_META.map((item) => ({ ...item, count: riskCounts.value[item.key], percentage: totalActiveStudents.value ? (riskCounts.value[item.key] / totalActiveStudents.value) * 100 : 0 })))
+  const riskDistribution = computed(() => (['level_1', 'level_2', 'level_3', 'normal'] as CrisisLevelKey[]).map((key) => { const badge = crisisConfig.getLevelBadge(key); return { ...badge, count: riskCounts.value[key], percentage: totalActiveStudents.value ? (riskCounts.value[key] / totalActiveStudents.value) * 100 : 0 } }))
   const realtimeRiskStudentCount = computed(() => totalActiveStudents.value - riskCounts.value.normal)
   const normalStudentCount = computed(() => riskCounts.value.normal)
   const normalRate = computed(() => totalActiveStudents.value ? (normalStudentCount.value / totalActiveStudents.value) * 100 : 0)
@@ -65,6 +51,7 @@ export const useOverviewStore = defineStore('overview', () => {
   const maxCategoryCount = computed(() => Math.max(1, ...categoryStats.value.map((item) => item.count)))
 
   async function load(termId?: string) {
+    crisisConfig.load()
     isLoading.value = true
     try {
       const [loadedStudents, loadedConsultations] = await Promise.all([db.students.toArray(), db.consultations.toArray()])

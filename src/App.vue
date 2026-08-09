@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { getActivePinia } from 'pinia'
 import FirstLaunchNoticeModal from './components/common/FirstLaunchNoticeModal.vue'
+import OnboardingModal from './components/common/OnboardingModal.vue'
 import SecuritySetupModal from './components/system/SecuritySetupModal.vue'
 import BackupToastHost from './components/system/BackupToastHost.vue'
 import { startReminderScheduler } from './services/reminderScheduler'
@@ -20,6 +21,7 @@ onBeforeUnmount(() => stopAutoBackup?.())
   <template v-if="securityReady">
     <RouterView />
     <FirstLaunchNoticeModal />
+    <OnboardingModal />
   </template>
   <SecuritySetupModal v-else @completed="securityReady = true" />
   <BackupToastHost />

@@ -67,7 +67,10 @@ export async function createBackup(): Promise<BackupPayload> {
       feishuConfig: config?.feishuConfig ?? {},
       categories: config?.consultationCategories ?? config?.customCategories ?? [],
     },
-    localStorage: { hasSeenLaunchNotice: localStorage.getItem('hasSeenLaunchNotice') },
+    localStorage: {
+      hasSeenLaunchNotice: localStorage.getItem('hasSeenLaunchNotice'),
+      crisisConfig: localStorage.getItem('crisisConfig'),
+    },
   }
 }
 

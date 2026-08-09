@@ -1,6 +1,7 @@
 import { db } from '../db'
 import { sortGrades } from '../constants/grades'
-import type { ConsultationRecord, RiskLevel } from '../types/schema'
+import { crisisBadgeFromKey, levelKeyForStoredValue, readCrisisConfig, type CrisisConfigSnapshot, type CrisisLevelKey } from '../stores/useCrisisConfigStore'
+import type { ConsultationRecord } from '../types/schema'
 
 export type ReportPeriod = 'week' | 'month' | 'custom'
 
@@ -42,19 +43,12 @@ export interface ReportData {
   leaderTrailCount: number
   closedCount: number
   referralCount: number
-  riskDistribution: Array<{ key: RiskLevel; label: string; count: number; color: string }>
+  riskDistribution: Array<{ key: CrisisLevelKey; label: string; count: number; color: string; emoji: string }>
   concernDistribution: Array<{ label: string; count: number }>
   trend: ReportTrendPoint[]
   gradeDistribution: Array<{ label: string; count: number; color: string }>
   gradeRows: ReportGradeRow[]
 }
-
-const riskMeta: Array<{ key: RiskLevel; label: string; color: string }> = [
-  { key: 'crisis', label: '红色 · 一级', color: '#e45d67' },
-  { key: 'warning', label: '橙色 · 二级', color: '#e99b4b' },
-  { key: 'attention', label: '黄色 · 三级', color: '#d7b35b' },
-  { key: 'normal', label: '蓝色 · 四级', color: '#6e9caf' },
-]
 
 const concernAliases: Record<string, string> = {
   学业: '学业压力', 学业压力: '学业压力',
@@ -113,7 +107,7 @@ function formatGeneratedAt(date = new Date()) {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
-function makeTrend(range: ReportDateRange, consultations: ConsultationRecord[]) {
+function makeTrend(range: ReportDateRange, consultations: ConsultationRecord[], crisisConfig: CrisisConfigSnapshot) {
   const start = parseDate(range.start)
   const end = parseDate(range.end)
   const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
@@ -136,7 +130,7 @@ function makeTrend(range: ReportDateRange, consultations: ConsultationRecord[]) 
     points.push({
       label: unit === 'month' ? `${pointStart.getMonth() + 1}月` : unit === 'week' ? `${pointStart.getMonth() + 1}/${pointStart.getDate()}` : `${pointStart.getMonth() + 1}/${pointStart.getDate()}`,
       consultations: selected.length,
-      risks: selected.filter((record) => record.riskLevelAtTime && record.riskLevelAtTime !== 'normal').length,
+      risks: selected.filter((record) => levelKeyForStoredValue(record.riskLevelAtTime, crisisConfig) !== 'normal').length,
     })
     if (unit === 'month') cursor.setMonth(cursor.getMonth() + 1, 1)
     else cursor.setDate(cursor.getDate() + (unit === 'week' ? 7 : 1))
@@ -155,9 +149,11 @@ export async function buildReportData(period: ReportPeriod, customStart?: string
   const rangeConsultations = consultations.filter((record) => inRange(record.date, range))
   const rangeTrails = trails.filter((record) => inRange(record.dateTime, range))
   const activeStudents = students.filter((student) => student.status === 'active')
-  const riskStudents = activeStudents.filter((student) => student.riskLevel !== 'normal')
-  const highRiskStudents = riskStudents.filter((student) => student.riskLevel === 'crisis' || student.riskLevel === 'warning')
-  const attentionStudents = riskStudents.filter((student) => student.riskLevel === 'attention')
+  const crisisConfig = readCrisisConfig()
+  const levelForStudent = (student: typeof activeStudents[number]) => levelKeyForStoredValue(student.warningLevel ?? student.riskLevel, crisisConfig)
+  const riskStudents = activeStudents.filter((student) => levelForStudent(student) !== 'normal')
+  const highRiskStudents = riskStudents.filter((student) => crisisBadgeFromKey(levelForStudent(student), crisisConfig).weight >= 2)
+  const attentionStudents = riskStudents.filter((student) => crisisBadgeFromKey(levelForStudent(student), crisisConfig).weight === 1)
   const concernCounts = new Map<string, number>()
   rangeConsultations.forEach((record) => record.problemCategories.forEach((category) => {
     const label = concernLabel(category)
@@ -170,20 +166,16 @@ export async function buildReportData(period: ReportPeriod, customStart?: string
   const gradeDistribution = grades.map((grade, index) => ({ label: grade, count: rangeConsultations.filter((record) => studentsById.get(record.studentId)?.grade === grade).length, color: gradeColors[index % gradeColors.length] }))
   const gradeRows = grades.map((grade) => {
     const gradeConsultations = rangeConsultations.filter((record) => studentsById.get(record.studentId)?.grade === grade)
-    const gradeStudents = activeStudents.filter((student) => student.grade === grade && student.riskLevel !== 'normal')
-    const gradeHigh = gradeStudents.filter((student) => student.riskLevel === 'crisis' || student.riskLevel === 'warning')
-    const breakdown = [
-      gradeHigh.filter((student) => student.riskLevel === 'crisis').length ? `红${gradeHigh.filter((student) => student.riskLevel === 'crisis').length}` : '',
-      gradeHigh.filter((student) => student.riskLevel === 'warning').length ? `橙${gradeHigh.filter((student) => student.riskLevel === 'warning').length}` : '',
-      gradeStudents.filter((student) => student.riskLevel === 'attention').length ? `黄${gradeStudents.filter((student) => student.riskLevel === 'attention').length}` : '',
-    ].filter(Boolean).join('/') || '—'
+    const gradeStudents = activeStudents.filter((student) => student.grade === grade && levelForStudent(student) !== 'normal')
+    const gradeHigh = gradeStudents.filter((student) => crisisBadgeFromKey(levelForStudent(student), crisisConfig).weight >= 2)
+    const breakdown = (['level_1', 'level_2', 'level_3'] as CrisisLevelKey[]).map((key) => { const count = gradeStudents.filter((student) => levelForStudent(student) === key).length; const badge = crisisBadgeFromKey(key, crisisConfig); return count ? `${badge.emoji}${badge.label}${count}` : '' }).filter(Boolean).join('/') || '—'
     const gradeConcerns = new Map<string, number>()
     gradeConsultations.forEach((record) => record.problemCategories.forEach((category) => {
       const label = concernLabel(category)
       gradeConcerns.set(label, (gradeConcerns.get(label) ?? 0) + 1)
     }))
     const topConcern = [...gradeConcerns.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '暂无明显集中因素'
-    return { grade, consultationCount: gradeConsultations.length, highRiskCount: gradeHigh.length, highRiskBreakdown: breakdown, trailCount: rangeTrails.filter((trail) => trail.studentId && studentsById.get(trail.studentId)?.grade === grade).length, topConcern, statusLabel: gradeHigh.length >= 2 ? '重点关注' : gradeStudents.length ? '趋势可控' : '总体平稳', statusTone: (gradeHigh.length >= 2 ? 'watch' : 'calm') as 'watch' | 'calm' }
+    return { grade, consultationCount: gradeConsultations.length, highRiskCount: gradeHigh.length, highRiskBreakdown: breakdown, trailCount: rangeTrails.filter((trail) => trail.studentId && studentsById.get(trail.studentId)?.grade === grade).length, topConcern, statusLabel: gradeHigh.length >= 2 ? '需优先响应' : gradeStudents.length ? '趋势可控' : '整体平稳', statusTone: (gradeHigh.length >= 2 ? 'watch' : 'calm') as 'watch' | 'calm' }
   })
   const schoolConfig = settings as (typeof settings & { schoolName?: string })
   const schoolName = schoolConfig?.schoolName?.trim() || '本校心理健康指导中心'
@@ -201,11 +193,11 @@ export async function buildReportData(period: ReportPeriod, customStart?: string
     collaborationCount: rangeTrails.length,
     parentTrailCount: rangeTrails.filter((trail) => trail.category === 'parent').length,
     leaderTrailCount: rangeTrails.filter((trail) => trail.category === 'leader').length,
-    closedCount: new Set(rangeConsultations.filter((record) => record.riskLevelAtTime === 'normal').map((record) => record.studentId)).size,
+    closedCount: new Set(rangeConsultations.filter((record) => levelKeyForStoredValue(record.riskLevelAtTime, crisisConfig) === 'normal').map((record) => record.studentId)).size,
     referralCount: new Set(rangeConsultations.filter((record) => record.visitType === 'referral').map((record) => record.studentId)).size,
-    riskDistribution: riskMeta.map((item) => ({ ...item, count: activeStudents.filter((student) => student.riskLevel === item.key).length })),
+    riskDistribution: (['level_1', 'level_2', 'level_3', 'normal'] as CrisisLevelKey[]).map((key) => { const badge = crisisBadgeFromKey(key, crisisConfig); return { key, label: badge.label, emoji: badge.emoji, color: badge.color, count: activeStudents.filter((student) => levelForStudent(student) === key).length } }),
     concernDistribution,
-    trend: makeTrend(range, rangeConsultations),
+    trend: makeTrend(range, rangeConsultations, crisisConfig),
     gradeDistribution,
     gradeRows,
   }
